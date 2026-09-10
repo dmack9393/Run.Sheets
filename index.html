@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
 <meta name="color-scheme" content="dark">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#0A0F1A">
 <title>Run Sheets</title>
 <style>
@@ -319,6 +322,8 @@ ol.steps strong{color:var(--t1)}
     "Use the driver's shift to work out AM or PM on bare times; a noons shift runs past midnight.\n" +
     "Leave a field blank rather than guessing.";
 
+  var APP_VER = "v6", APP_BUILT = "10 Sep 2026";
+
   var SB_SQL = "create table if not exists runsheets (\n  id text primary key,\n  date text, driver text,\n  doc jsonb not null,\n  deleted boolean not null default false,\n  up bigint not null default 0\n);\ncreate table if not exists runsheet_photos (\n  id text primary key, img text, up bigint not null default 0\n);\ncreate table if not exists runsheet_config (\n  key text primary key, doc jsonb not null, up bigint not null default 0\n);\nalter table runsheets enable row level security;\nalter table runsheet_photos enable row level security;\nalter table runsheet_config enable row level security;\ncreate policy anon_all on runsheets for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_photos for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_config for all to anon using (true) with check (true);";
 
   var ICON = {
@@ -593,7 +598,10 @@ ol.steps strong{color:var(--t1)}
   function sbBase() { return String(DB.sbUrl || "").trim().replace(/\/+$/, "") + "/rest/v1/"; }
   function sbHead(extra) {
     var k = String(DB.sbKey || "").trim();
-    var h = { "apikey": k, "Authorization": "Bearer " + k, "Content-Type": "application/json" };
+    var h = { "apikey": k, "Content-Type": "application/json" };
+    // New sb_publishable_ / sb_secret_ keys are not JWTs and must not go on
+    // Authorization; the legacy eyJ... anon keys still expect it there.
+    if (k.indexOf("sb_") !== 0) h["Authorization"] = "Bearer " + k;
     for (var x in extra) if (extra.hasOwnProperty(x)) h[x] = extra[x];
     return h;
   }
@@ -1135,6 +1143,7 @@ ol.steps strong{color:var(--t1)}
 
     var h = '<div class="top"><div class="top-in"><h1>Run sheets</h1>' +
       '<div class="stamp">Period <b>' + f.period + '</b>&ensp;Week <b>' + f.wop + '</b>&ensp;<b>' + shortDate(dates[0]) + '&ndash;' + shortDate(dates[6]) + '</b>' +
+      '&ensp;<span style="opacity:.6">' + APP_VER + '</span>' +
       (sbOn() ? '&ensp;<span style="display:inline-flex;align-items:center;gap:5px;vertical-align:-1px"><span style="width:7px;height:7px;border-radius:50%;background:' +
         (SYNC === "err" ? "var(--red)" : SYNC === "busy" ? "var(--acc)" : "var(--green)") + '"></span>' +
         (SYNC === "err" ? "sync off" : SYNC === "busy" ? "syncing" : "synced") + '</span>' : '') +
@@ -1633,13 +1642,14 @@ ol.steps strong{color:var(--t1)}
     h += '<div class="card"><div class="card-h"><h2>Shared storage</h2>' + syncDot() + '</div><div class="card-b">';
     h += '<p class="muted">With a Supabase project connected, every device that opens this link shares the same run sheets. Without one, each device keeps its own copy.</p>';
     h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 260px">Project URL<input type="text" data-g="sbUrl" value="' + esc(DB.sbUrl) + '" placeholder="https://abcdefgh.supabase.co" spellcheck="false" autocapitalize="off"></label></div>';
-    h += '<div class="grid"><label style="flex:2 1 260px">Anon public key<input type="password" data-g="sbKey" value="' + esc(DB.sbKey) + '" placeholder="eyJhbGci..." autocomplete="off" spellcheck="false"></label></div>';
+    h += '<div class="grid"><label style="flex:2 1 260px">Publishable key<input type="password" data-g="sbKey" value="' + esc(DB.sbKey) + '" placeholder="sb_publishable_..." autocomplete="off" spellcheck="false"></label></div>';
+    if (/^sb_secret_/.test(String(DB.sbKey || "").trim())) h += '<div class="notice bad" style="margin-bottom:12px"><strong>That is the secret key.</strong> It bypasses all security and must never sit in a web page. Use the one starting sb_publishable_ instead.</div>';
     h += '<div class="row"><button class="btn primary" data-act="sbtest">Connect and sync</button>' +
       (sbOn() ? '<button class="btn" data-act="sbsync">Sync now</button><button class="btn sm danger" data-act="sbclear">Disconnect</button>' : '') + '</div>';
     h += '<details class="more"><summary>Setting up the project</summary><ol class="steps">' +
       '<li>Sign up at supabase.com and create a project. The free tier is far more than this needs.</li>' +
       '<li>Open <strong>SQL Editor</strong>, paste the block below, press Run.</li>' +
-      '<li><strong>Project Settings &rarr; API</strong>: copy the Project URL and the <strong>anon public</strong> key into the boxes above, then Connect and sync.</li>' +
+      '<li><strong>Project Settings &rarr; API Keys</strong>: copy the Project URL and the key starting <strong>sb_publishable_</strong> into the boxes above, then Connect and sync. Older projects show a long key starting eyJ instead; either works.</li>' +
       '<li>Do the same on every device that should share the data.</li></ol>' +
       '<textarea readonly style="min-height:210px;font-size:12px;line-height:1.5" onclick="this.select()">' + esc(SB_SQL) + '</textarea>' +
       '<p class="small" style="margin-top:10px">The anon key sits inside this page, so treat the link as the password: anyone who has it can read and write these run sheets. Keep it off anything public.</p>' +
@@ -1655,6 +1665,9 @@ ol.steps strong{color:var(--t1)}
       '<div class="row"><button class="btn sm" data-act="testkey">Test the key</button>' + (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>' +
       '<p class="small" style="margin:10px 0 0">Paid per sheet, about a cent. Used only when no Gemini key is set.</p></details>';
     h += '</div></div>';
+    h += '<div class="card"><div class="card-b" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+      '<div><h3 style="margin:0">Version ' + APP_VER + '</h3><div class="small">Built ' + APP_BUILT + '</div></div>' +
+      '<button class="btn sm" data-act="hardreload">Force a fresh copy</button></div></div>';
     h += '<details class="more"><summary>Photo reading log (' + READLOG.length + ')</summary>';
     if (!READLOG.length) h += '<p class="small">Nothing read yet this session.</p>';
     else {
@@ -1774,7 +1787,9 @@ ol.steps strong{color:var(--t1)}
     }
     if (act === "resetdrivers") { if (window.confirm("Put the roster back to the 26 drivers from the P10 W1 schedule?")) { DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS)); save(); render(); } return; }
     if (act === "sbtest" || act === "sbsync") {
-      if (!sbOn()) { toast("Fill in both the project URL and the anon key."); return; }
+      if (!sbOn()) { toast("Fill in both the project URL and the publishable key."); return; }
+      if (/^sb_secret_/.test(String(DB.sbKey || "").trim())) { toast("That is the secret key. Use the sb_publishable_ one."); return; }
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(DB.sbUrl || "").trim())) { toast("The project URL should look like https://abcdefgh.supabase.co"); return; }
       a.disabled = true; a.textContent = "Working";
       syncPush().then(function () { return syncPull(); }).then(function () {
         startPolling(); render();
@@ -1787,6 +1802,13 @@ ol.steps strong{color:var(--t1)}
         DB.sbUrl = ""; DB.sbKey = ""; if (pullT) clearInterval(pullT);
         setSync("off"); save(); render();
       }
+      return;
+    }
+    if (act === "hardreload") {
+      try {
+        var u = String(window.location.href).split("?")[0].split("#")[0];
+        window.location.replace(u + "?v=" + Date.now());
+      } catch (e) { toast("Close the tab and reopen it."); }
       return;
     }
     if (act === "copylog") {
