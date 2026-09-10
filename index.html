@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0A0F1A">
+<title>Run Sheets</title>
+<style>
+:root{
+  --s0:#0A0F1A; --s1:#0F1626; --s2:#151E31; --s3:#1C2740; --s4:#243252;
+  --line:rgba(148,163,184,.13); --line2:rgba(148,163,184,.26); --line3:rgba(148,163,184,.42);
+  --t1:#E8EDF5; --t2:#A3AFC2; --t3:#6B7890;
+  --acc:#5B9DFF; --acc2:#8FC0FF; --acc-bg:rgba(91,157,255,.14); --acc-glow:rgba(91,157,255,.35);
+  --red:#FF5C70; --red-bg:rgba(255,92,112,.13); --red-line:rgba(255,92,112,.4);
+  --green:#3DD68C; --green-bg:rgba(61,214,140,.12); --green-line:rgba(61,214,140,.4);
+  --tap:48px; --nav:66px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;min-height:100%}
+body{background:var(--s0);color:var(--t1);
+  font:15.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(900px 420px at 50% -120px,rgba(91,157,255,.16),transparent 70%)}
+h1,h2,h3{margin:0;font-weight:640;letter-spacing:-.015em;color:var(--t1)}
+h1{font-size:18px}h2{font-size:17px}h3{font-size:15px}
+p{margin:0 0 10px}
+button{font:inherit;font-variant-numeric:tabular-nums;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;font-variant-numeric:tabular-nums;color:var(--t1)}
+svg{display:block;flex:0 0 auto}
+.hide{display:none!important}
+::selection{background:var(--acc-glow)}
+
+/* ---------- shell ---------- */
+.top{position:sticky;top:0;z-index:30;background:rgba(10,15,26,.82);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:960px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 18px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.top h1{font-size:17px;letter-spacing:.01em}
+.top h1:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc);margin-right:10px;vertical-align:1px}
+.top .stamp{font-size:12.5px;color:var(--t3);white-space:nowrap;letter-spacing:.02em}
+.top .stamp b{color:var(--t1);font-weight:600}
+.wk-bar{display:flex;align-items:stretch;border-top:1px solid var(--line);max-width:960px;margin:0 auto}
+.wk-arrow{flex:0 0 40px;border:0;background:none;color:var(--t2);font-size:26px;line-height:1;padding:0}
+.wk-arrow[disabled]{opacity:.25}
+.wk-strip{flex:1;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 4px;scroll-behavior:smooth}
+.wk-strip::-webkit-scrollbar{display:none}
+.wk{flex:1 0 92px;min-width:92px;border:1px solid var(--line);background:var(--s1);border-radius:9px;padding:7px 10px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;color:var(--t3);text-align:left}
+.wk .wn{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.01em}
+.wk .wp{font-size:10.5px;font-weight:600;letter-spacing:.05em;color:var(--t3)}
+.wk .wc{font-size:11px;color:var(--t3);margin-top:2px}
+.wk.now .wn:after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc);margin-left:6px;vertical-align:2px}
+.wk.on{border-color:var(--acc);background:var(--acc-bg);box-shadow:0 0 0 1px var(--acc),0 0 16px -4px var(--acc-glow)}
+.wk.on .wn,.wk.on .wp,.wk.on .wc{color:#fff}
+main{max-width:960px;margin:0 auto;padding:18px 16px calc(var(--nav) + 30px + env(safe-area-inset-bottom))}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(15,22,38,.9);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:1px solid var(--line2);padding-bottom:env(safe-area-inset-bottom)}
+.nav-in{max-width:960px;margin:0 auto;display:flex}
+.nav button{flex:1;min-height:var(--nav);border:0;background:none;color:var(--t3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;font-weight:600;position:relative;letter-spacing:.02em}
+.nav button[aria-selected="true"]{color:var(--acc2)}
+.nav button[aria-selected="true"]:after{content:"";position:absolute;top:0;left:22%;right:22%;height:2px;background:var(--acc);box-shadow:0 0 10px var(--acc)}
+.nav button .pip{position:absolute;top:10px;left:calc(50% + 7px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 10px rgba(255,92,112,.6)}
+@media (min-width:760px){
+  .nav{position:sticky;top:calc(118px + env(safe-area-inset-top));bottom:auto;border-top:0;border-bottom:1px solid var(--line)}
+  .nav button{min-height:50px;flex-direction:row;gap:8px;font-size:14px}
+  .nav button[aria-selected="true"]:after{top:auto;bottom:0}
+  .nav button .pip{position:static;margin-left:2px}
+  main{padding-bottom:40px}
+}
+
+/* ---------- primitives ---------- */
+.card{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,0) 40%),var(--s1);border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+.card-b{padding:16px}
+.card-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.muted{color:var(--t2);font-size:14px;line-height:1.5}
+.small{font-size:13px;color:var(--t3);line-height:1.5}
+.empty{padding:38px 16px;text-align:center;color:var(--t3)}
+label{display:block;font-size:11.5px;font-weight:700;color:var(--t3);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase}
+.grid{display:flex;gap:12px;flex-wrap:wrap}
+.grid>label{flex:1 1 140px;min-width:0;margin-bottom:12px}
+input,select,textarea{width:100%;min-height:var(--tap);padding:9px 12px;background:var(--s2);border:1px solid var(--line2);border-radius:8px;font-weight:500;letter-spacing:0;text-transform:none}
+input::placeholder,textarea::placeholder{color:var(--t3)}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+input[readonly]{color:var(--t2)}
+input[type="date"],input[type="time"]{color-scheme:dark}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+textarea{min-height:84px;resize:vertical;line-height:1.5}
+select{-webkit-appearance:none;appearance:none;padding-right:34px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--t2) 50%),linear-gradient(135deg,var(--t2) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 21px,calc(100% - 12px) 21px;background-size:5px 5px;background-repeat:no-repeat}
+select option{background:var(--s3);color:var(--t1)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:var(--tap);padding:0 18px;border-radius:9px;border:1px solid var(--line2);background:var(--s2);color:var(--t1);font-weight:600;font-size:15px;transition:transform .08s}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#061024;box-shadow:0 0 0 1px rgba(91,157,255,.2),0 8px 24px -8px var(--acc-glow)}
+.btn.brand{background:linear-gradient(135deg,#6FAEFF,#3C7BEA);border-color:transparent;color:#fff;font-weight:680;letter-spacing:.01em;
+  box-shadow:0 0 0 1px rgba(111,174,255,.35),0 14px 40px -12px rgba(91,157,255,.7)}
+.btn.big{width:100%;min-height:64px;font-size:17px;border-radius:12px}
+.btn.quiet{border-color:transparent;color:var(--acc2);background:none}
+.btn.danger{color:var(--red);border-color:var(--red-line);background:var(--red-bg)}
+.btn.sm{min-height:38px;padding:0 13px;font-size:13.5px;border-radius:8px}
+.btn[disabled]{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}.sheet.busy .sstat:before{animation:none}}
+
+/* ---------- week strip ---------- */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:16px 0 6px}
+.week button{border:1px solid var(--line);background:var(--s1);border-radius:10px;padding:9px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--t3)}
+.week button .d{font-size:10.5px;font-weight:700;letter-spacing:.08em}
+.week button .n{font-size:17px;font-weight:660;color:var(--t1)}
+.week button .c{font-size:11.5px;min-height:16px;color:var(--t3)}
+.week button .c b{color:var(--acc2);font-weight:700}
+.week button[aria-pressed="true"]{border-color:var(--acc);background:var(--acc-bg);box-shadow:0 0 0 1px var(--acc),0 0 18px -4px var(--acc-glow)}
+.week button[aria-pressed="true"] .n,.week button[aria-pressed="true"] .c,.week button[aria-pressed="true"] .c b,.week button[aria-pressed="true"] .d{color:#fff}
+.week button.today .d{color:var(--acc2)}
+
+/* ---------- log rows ---------- */
+.dayhead{display:flex;align-items:center;gap:12px;margin:20px 0 8px;font-size:11.5px;font-weight:700;color:var(--t3);letter-spacing:.08em;text-transform:uppercase}
+.dayhead:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+.sheet{background:var(--s1);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;position:relative}
+.sheet:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line3)}
+.sheet.review{border-color:var(--red-line)}
+.sheet.review:before{background:var(--red);box-shadow:0 0 12px var(--red)}
+.sheet.clear:before{background:var(--green);box-shadow:0 0 10px rgba(61,214,140,.5)}
+.sheet.busy:before{background:var(--acc);box-shadow:0 0 12px var(--acc)}
+.shead{display:flex;align-items:stretch}
+.stoggle{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:13px 6px 13px 17px;background:none;border:0;text-align:left}
+.smain{flex:1;min-width:0}
+.sname{display:block;font-size:16px;font-weight:660;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.smeta{display:flex;flex-wrap:wrap;font-size:12.5px;color:var(--t3);margin-top:3px}
+.smeta span+span{margin-left:8px;padding-left:8px;border-left:1px solid var(--line2)}
+.smeta em{font-style:normal;color:var(--acc2);font-weight:600}
+.sstat{display:inline-flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;font-weight:650;color:var(--t2)}
+.sstat:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--t3)}
+.sheet.review .sstat{color:var(--red)}.sheet.review .sstat:before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.sheet.clear .sstat{color:var(--green)}.sheet.clear .sstat:before{background:var(--green);box-shadow:0 0 8px var(--green)}
+.sheet.busy .sstat{color:var(--acc2)}.sheet.busy .sstat:before{background:var(--acc);box-shadow:0 0 8px var(--acc);animation:pulse 1.2s ease-in-out infinite}
+.chev{color:var(--t3);padding:0 4px}
+.ibtn{flex:0 0 auto;width:50px;border:0;border-left:1px solid var(--line);background:none;color:var(--t3);display:flex;align-items:center;justify-content:center}
+.ibtn:hover{color:var(--red);background:var(--red-bg)}
+.sbody{border-top:1px solid var(--line);padding:16px 14px;background:var(--s0)}
+
+.photo{width:100%;max-height:300px;object-fit:contain;background:var(--s2);border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:14px}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.pill{border:1px solid var(--line2);border-radius:6px;padding:5px 10px;font-size:12.5px;color:var(--t3);background:var(--s2)}
+.pill b{color:var(--t1);font-weight:650}
+
+.decision{border:1px solid var(--red-line);border-radius:10px;background:var(--red-bg);padding:14px;margin-bottom:12px}
+.decision.done{border-color:var(--green-line);background:var(--green-bg)}
+.decision .t{font-size:15.5px;font-weight:660;margin-bottom:3px}
+.decision .d{font-size:13.5px;color:var(--t2);margin-bottom:12px;line-height:1.5}
+.decide{display:flex;gap:10px}
+.decide button{flex:1;min-height:var(--tap);border-radius:9px;border:1px solid var(--line2);background:var(--s2);font-weight:660;color:var(--t1)}
+.decide button[data-on="1"][data-k="approve"]{background:var(--green);border-color:var(--green);color:#04150C;box-shadow:0 0 18px -4px rgba(61,214,140,.7)}
+.decide button[data-on="1"][data-k="deny"]{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 18px -4px rgba(255,92,112,.7)}
+.notice{border:1px solid rgba(91,157,255,.4);border-radius:10px;padding:13px 14px;margin-bottom:12px;background:var(--acc-bg);font-size:14px;line-height:1.5}
+.notice.bad{border-color:var(--red-line);background:var(--red-bg)}
+
+/* ---------- moves ---------- */
+table.moves{width:100%;border-collapse:collapse;font-size:14px}
+table.moves th{text-align:left;font-size:10.5px;color:var(--t3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 5px 8px;border-bottom:1px solid var(--line2)}
+table.moves td{padding:5px 3px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.moves input,table.moves select{min-height:42px;padding:7px 8px;font-size:14px;border-radius:7px}
+table.moves select{background-position:calc(100% - 14px) 18px,calc(100% - 10px) 18px;padding-right:26px}
+.mwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
+.mwrap table{min-width:690px}
+.tag{display:inline-block;min-width:24px;text-align:center;border-radius:5px;padding:2px 6px;font-size:11.5px;font-weight:700;background:var(--s3);color:var(--t2)}
+.tag.b{background:var(--acc);color:#061024;box-shadow:0 0 10px -2px var(--acc-glow)}.tag.q{background:var(--red-bg);color:var(--red)}
+
+/* ---------- tallies ---------- */
+.seg{display:flex;background:var(--s1);border:1px solid var(--line2);border-radius:10px;padding:3px;margin-bottom:14px}
+.seg button{flex:1;min-height:40px;border:0;border-radius:8px;background:none;font-weight:600;color:var(--t3);font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--acc);color:#061024;box-shadow:0 4px 16px -6px var(--acc-glow)}
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:var(--s1)}
+table.tally{border-collapse:collapse;width:100%;min-width:660px;font-size:14px}
+table.tally th,table.tally td{border-bottom:1px solid var(--line);padding:9px 10px}
+table.tally thead th{background:var(--s3);color:var(--t2);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--line2);white-space:nowrap}
+table.tally thead th small{display:block;font-size:13.5px;font-weight:650;letter-spacing:0;text-transform:none;color:var(--t1);margin-top:2px}
+table.tally th.lane{text-align:left;font-weight:500;white-space:nowrap;position:sticky;left:0;background:var(--s1);z-index:2;border-right:1px solid var(--line2);color:var(--t1)}
+table.tally thead th.lane{background:var(--s3);color:var(--t2);z-index:3}
+table.tally td{text-align:center;min-width:46px;color:var(--t3)}
+table.tally td.has{color:var(--acc2);font-weight:660;background:var(--acc-bg)}
+table.tally td.tot{background:var(--s2);font-weight:700;color:var(--t1)}
+table.tally tr.grp th{background:var(--s2);font-size:10.5px;color:var(--t3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:left}
+table.tally tr.gap th,table.tally tr.gap td{height:8px;padding:0;background:var(--s0)}
+table.tally td .cb{color:#fff}
+.legend{font-size:13px;color:var(--t3);margin-top:10px}
+
+/* ---------- stats ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.stat{background:var(--s1);padding:15px 16px}
+.stat .k{font-size:10.5px;color:var(--t3);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.stat .v{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin-top:5px;color:var(--t1)}
+.stat.hot .v{color:var(--red);text-shadow:0 0 18px rgba(255,92,112,.4)}.stat.good .v{color:var(--green);text-shadow:0 0 18px rgba(61,214,140,.35)}
+details.more{border:1px solid var(--line);border-radius:10px;background:var(--s1);padding:0 14px;margin-top:14px}
+details.more summary{cursor:pointer;padding:14px 0;font-weight:640;min-height:var(--tap);display:flex;align-items:center;color:var(--t1);list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary:after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--t3);border-bottom:2px solid var(--t3);transform:rotate(45deg);transition:transform .15s}
+details.more[open] summary:after{transform:rotate(-135deg)}
+details.more[open] summary{border-bottom:1px solid var(--line);margin-bottom:14px}
+details.more[open]{padding-bottom:14px}
+ol.steps{margin:0;padding-left:20px;color:var(--t2)}ol.steps li{margin-bottom:8px;line-height:1.5}
+ol.steps strong{color:var(--t1)}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(var(--nav) + 16px + env(safe-area-inset-bottom));z-index:99;display:none;background:var(--s4);color:var(--t1);padding:13px 16px;border-radius:12px;font-size:14.5px;line-height:1.45;border:1px solid var(--line3);box-shadow:0 12px 32px rgba(0,0,0,.5)}
+@media (min-width:760px){#toast{bottom:24px;max-width:520px;margin:0 auto}}
+#fatal .bad{margin:16px}
+</style>
+</head>
+<body>
+<noscript><div class="notice bad" style="margin:16px">This page needs JavaScript. Open it in Chrome or Safari.</div></noscript>
+<div id="fatal"></div>
+<div id="app"><div class="empty">Loading</div></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  window.onerror = function (msg, src, line) {
+    var f = document.getElementById("fatal");
+    if (f) f.innerHTML = '<div class="notice bad"><strong>Something broke.</strong> ' + esc(String(msg)) + ' (line ' + line + ')</div>';
+    return false;
+  };
+
+  /* ================================================================
+     Reference data
+     ================================================================ */
+  var WEEK1 = Date.UTC(2025, 11, 28);              // FY2026 week 1 starts Sun 28 Dec 2025
+  var DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  // From WK 37 Transport P10W1 2026. s/e are the regular scheduled shift.
+  var SEED_DRIVERS = [
+    { n: "ADRIAN DOUGLAS", g: "71059073", loc: "TOR", sh: "M - TH (DAYS)", s: "03:30", e: "13:30" },
+    { n: "BRIAN WARREN", g: "1002645", loc: "TOR", sh: "T - F (DAYS)", s: "03:00", e: "13:00" },
+    { n: "CARLOS RAPOSO", g: "10000848", loc: "TOR", sh: "M-W (DAYS)", s: "02:30", e: "12:30" },
+    { n: "DAVE LYVER", g: "1089234", loc: "TOR", sh: "T -TH (NOONS)", s: "14:00", e: "00:00" },
+    { n: "DENNIS JENNINGS", g: "1001495", loc: "TOR", sh: "M - TH (DAYS)", s: "02:00", e: "12:00" },
+    { n: "DENSON LINTON", g: "10012271", loc: "TOR", sh: "M-TH (NOONS)", s: "14:30", e: "00:30" },
+    { n: "EDWIN (MIKE) BRANCH", g: "81001795", loc: "TOR", sh: "M-TH (NOONS)", s: "15:00", e: "01:00" },
+    { n: "GARY SOUSA", g: "1155127", loc: "TOR", sh: "T - F (DAYS)", s: "05:00", e: "15:00" },
+    { n: "GREG DAVIS", g: "1002604", loc: "TOR", sh: "T - F (DAYS)", s: "03:00", e: "13:00" },
+    { n: "JOHN BEVERLY", g: "1161182", loc: "TOR", sh: "M-TH (NOONS)", s: "13:30", e: "22:30" },
+    { n: "JOHN MRUCK", g: "80328252", loc: "TOR", sh: "M-TH (NOONS)", s: "15:00", e: "01:00" },
+    { n: "MEHRSHAD KHANHKHAH", g: "10000839", loc: "TOR", sh: "M-TH (NOONS)", s: "13:30", e: "22:30" },
+    { n: "MIKE ROCHFORD", g: "1130154", loc: "TOR", sh: "T - F (DAYS)", s: "03:00", e: "13:00" },
+    { n: "TREVOR SYLVESTER", g: "81000852", loc: "TOR", sh: "M - TH (NOONS)", s: "15:00", e: "01:00" },
+    { n: "VASIL KARACOROVSKI", g: "01155938", loc: "TOR", sh: "T - F (DAYS)", s: "03:00", e: "13:00" },
+    { n: "TOM HASKETT", g: "01002633", loc: "TOR", sh: "MON TO WED (12h)", s: "00:00", e: "12:00" },
+    { n: "ZWADIE MUIR", g: "80927378", loc: "TOR", sh: "THURS TO SAT (12h)", s: "00:00", e: "12:00" },
+    { n: "BHOLA SOOKOO", g: "01002749", loc: "TOR", sh: "MON TO WED (12h)", s: "12:00", e: "00:00" },
+    { n: "AHMED NABI", g: "10000843", loc: "TOR", sh: "THURS TO SAT (12h)", s: "12:00", e: "00:00" },
+    { n: "ALLAN BALL (ORILLIA)", g: "1000920", loc: "ORI", sh: "T - F", s: "06:00", e: "16:00" },
+    { n: "ROBERT BEAULIEU (ORILLIA)", g: "10037138", loc: "ORI", sh: "M - TH (NOONS)", s: "16:00", e: "02:00" },
+    { n: "DENIS GUILBEAULT (ESSEX)", g: "1002241", loc: "LON", sh: "TUES-FRI (NOONS)", s: "16:00", e: "02:30" },
+    { n: "PAUL LEKX (LONDON)", g: "1002391", loc: "LON", sh: "T - FR", s: "04:00", e: "14:00" },
+    { n: "MIKE CROUSE (LONDON)", g: "1002382", loc: "LON", sh: "M-TH (NOONS)", s: "15:00", e: "01:00" },
+    { n: "MARIAN BELLGRAU (OTTAWA)", g: "1000350", loc: "OTT", sh: "TH, F, SAT", s: "04:30", e: "14:30" },
+    { n: "DAN MARTIN (OTTAWA)", g: "1000856", loc: "OTT", sh: "M, T, W DAYS", s: "04:30", e: "14:30" }
+  ];
+
+  var DEFAULT_ALIASES = {
+    "Mississauga": ["MISS", "MISSISSAUGA", "PEPSI MISSISSAUGA", "PEPSI TORONTO", "TORONTO", "PEPSI TOR"],
+    "ARMOUR": ["ARMOUR", "ARMOUR MISSISSAUGA", "ARMOUR RD", "ARMOR"],
+    "Caledon": ["CALEDON", "CALEDON RYDER", "CALEDON RYDER WHS", "CALEDON RYDER WHSE", "RYDER"],
+    "Peterborough (Quaker)": ["QUAKER", "PETERBOROUGH", "QUAKER PETERBOROUGH", "PETERBOROUGH QUAKER", "PETERBORO"],
+    "MILTON": ["MILTON"], "Alliance": ["ALLIANCE"], "DGN": ["DGN"],
+    "Refresco": ["REFRESCO", "REFRESHCO", "REFRASHCO"],
+    "Cambridge": ["CAMBRIDGE"], "REDPATH": ["REDPATH", "RED PATH"],
+    "LABATT": ["LABATT", "LABATTS"], "LABATT Missi": ["LABATT MISSI", "LABATT MISSISSAUGA"],
+    "Amcor / Biscayne": ["AMCOR", "BISCAYNE", "AMCOR BISCAYNE"],
+    "Fraserville": ["FRASERVILLE", "FRAZERVILLE", "PEPSI FRASERVILLE"],
+    "Falbourne": ["FALBOURNE", "FALBOURE", "FALBORNE"],
+    "FRUCTOSE - Ingredion": ["INGREDION", "FRUCTOSE INGREDION"],
+    "FRUCTOSE - ADM Lakeville": ["ADM", "ADM LAKEVILLE", "LAKEVILLE"],
+    "Pivot Logistics": ["PIVOT", "PIVOT LOGISTICS"],
+    "Orillia": ["ORILLIA", "ORI"], "London": ["LONDON", "LON"], "Essex": ["ESSEX"],
+    "Kingston": ["KINGSTON"], "Ottawa": ["OTTAWA", "OTT"], "Owen Sound": ["OWEN SOUND", "OWENSOUND"], "Sudbury": ["SUDBURY"]
+  };
+
+  var BACKHAUL = [
+    [["Amcor / Biscayne", "Mississauga"], ["Mississauga", "Amcor / Biscayne"]],
+    [["Mississauga", "Caledon"], ["Peterborough (Quaker)", "Caledon"], ["Peterborough (Quaker)", "Mississauga"], ["Caledon", "Mississauga"], ["LABATT", "LABATT Missi"]],
+    [["Mississauga", "MILTON"], ["MILTON", "Mississauga"], ["DGN", "Alliance"], ["Refresco", "Mississauga"], ["Mississauga", "Refresco"]],
+    [["Mississauga", "Alliance"], ["Alliance", "Mississauga"], ["Caledon", "Alliance"], ["Alliance", "DGN"]],
+    [["Mississauga", "Cambridge"], ["Cambridge", "Mississauga"], ["Mississauga", "REDPATH"], ["REDPATH", "Caledon"]],
+    [["Mississauga", "ARMOUR"], ["ARMOUR", "Mississauga"], ["ARMOUR", "Fraserville"], ["ARMOUR", "MILTON"], ["Mississauga", "Mississauga"]],
+    [["FRUCTOSE - Ingredion", "Mississauga"], ["FRUCTOSE - Ingredion", "Refresco"], ["FRUCTOSE - ADM Lakeville", "Mississauga"], ["Pivot Logistics", "Mississauga"]]
+  ];
+  var EMPTY_FORM = [
+    { dest: "Mississauga", origins: ["Cambridge", "Essex", "Fraserville", "Kingston", "London", "Orillia", "Ottawa", "Owen Sound", "Sudbury", "MILTON"] },
+    { dest: "London", origins: ["Mississauga", "Essex"] },
+    { dest: "Orillia", origins: ["Sudbury"] },
+    { dest: "ARMOUR", origins: ["Fraserville"] }
+  ];
+  var DUNNAGE_FORM = [
+    { dest: "Mississauga", origins: ["Cambridge", "Essex", "Fraserville", "Kingston", "London", "Orillia", "Ottawa", "Owen Sound", "Sudbury", "MILTON"] },
+    { dest: "London", origins: ["Essex"] },
+    { dest: "Orillia", origins: ["Sudbury"] },
+    { dest: "ARMOUR", origins: ["Fraserville"] }
+  ];
+
+  var ICON = {
+    camera: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h3.4l1.7-2.6h7.8l1.7 2.6H21v11H3z"/><circle cx="12" cy="14" r="3.6"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4.5h4M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7M10 10.5v6M14 10.5v6"/></svg>',
+    down: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></svg>',
+    up: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14.5l6-6 6 6"/></svg>',
+    log: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5zM8.5 9h7M8.5 12.5h7M8.5 16h4"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM4 10h16M4 14.5h16M9 5v14M15 5v14"/></svg>',
+    out: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>',
+    cog: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M6 18l1.6-1.6M16.4 7.6L18 6"/></svg>'
+  };
+
+  /* ================================================================
+     Helpers
+     ================================================================ */
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function el(id) { return document.getElementById(id); }
+  function uid() { return "s" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4); }
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function parseISO(d) { var p = String(d).split("-"); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+  function isoOf(ms) { var d = new Date(ms); return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()); }
+  function todayISO() { var d = new Date(); return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function fiscal(iso) {
+    var days = Math.floor((parseISO(iso) - WEEK1) / 86400000);
+    var week = Math.floor(days / 7) + 1;
+    return { week: week, period: Math.floor((week - 1) / 4) + 1, wop: ((week - 1) % 4) + 1,
+      dow: ((days % 7) + 7) % 7, weekStart: isoOf(WEEK1 + (week - 1) * 7 * 86400000) };
+  }
+  function prettyDate(iso) {
+    var p = iso.split("-"), d = DAYS[fiscal(iso).dow];
+    return d.charAt(0) + d.slice(1).toLowerCase() + " " + (+p[2]) + " " + MON[+p[1] - 1];
+  }
+  function shortDate(iso) { var p = iso.split("-"); return (+p[2]) + " " + MON[+p[1] - 1]; }
+  function mins(t) { var m = String(t || "").match(/^(\d{1,2}):(\d{2})$/); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+  function wrapDiff(a, b) { var d = a - b; while (d > 720) d -= 1440; while (d < -720) d += 1440; return d; }
+  function span(s, e) { var a = mins(s), b = mins(e); if (a === null || b === null) return null; if (b <= a) b += 1440; return b - a; }
+  function hrs(m) { return Math.round((m / 60) * 100) / 100; }
+  function fmtHrs(m) { return hrs(m).toFixed(2); }
+  function fmtMin(m) { m = Math.round(m); var h = Math.floor(m / 60), mm = m % 60; return (h ? h + " h " : "") + mm + " min"; }
+
+  function roster() { return (DB && DB.drivers) ? DB.drivers : SEED_DRIVERS; }
+  function driverByName(n) { var R = roster(); for (var i = 0; i < R.length; i++) if (R[i].n === n) return R[i]; return null; }
+  function matchDriver(raw) {
+    var k = String(raw || "").toUpperCase().replace(/[^A-Z]/g, "");
+    if (!k) return "";
+    var i, R = roster();
+    for (i = 0; i < R.length; i++) if (R[i].n.toUpperCase().replace(/[^A-Z]/g, "") === k) return R[i].n;
+    for (i = 0; i < R.length; i++) { var dn = R[i].n.toUpperCase().replace(/[^A-Z]/g, ""); if (dn.indexOf(k) >= 0 || k.indexOf(dn) >= 0) return R[i].n; }
+    var parts = String(raw).toUpperCase().split(/[^A-Z]+/).filter(function (p) { return p.length > 2; });
+    for (i = 0; i < R.length; i++) for (var p = 0; p < parts.length; p++) if (R[i].n.toUpperCase().indexOf(parts[p]) >= 0) return R[i].n;
+    return "";
+  }
+  function normTime(raw) {
+    var s = String(raw || "").toUpperCase().replace(/[^0-9:APM]/g, "");
+    if (!s) return "";
+    var m = s.match(/^(\d{1,2}):(\d{2})(AM|PM|A|P)?$/);
+    if (!m) { var d = s.match(/^(\d{3,4})(AM|PM|A|P)?$/); if (d) m = [null, d[1].slice(0, d[1].length - 2), d[1].slice(-2), d[2]]; }
+    if (!m) return "";
+    var hh = parseInt(m[1], 10), mm = parseInt(m[2], 10), ap = m[3] ? m[3].charAt(0) : "";
+    if (isNaN(hh) || isNaN(mm) || mm > 59) return "";
+    if (ap === "P" && hh < 12) hh += 12;
+    if (ap === "A" && hh === 12) hh = 0;
+    return hh > 23 ? "" : pad2(hh) + ":" + pad2(mm);
+  }
+  function normDate(raw) {
+    var s = String(raw || "").trim(), m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + "-" + pad2(+m[2]) + "-" + pad2(+m[3]);
+    var t = s.toUpperCase().match(/([A-Z]{3})[A-Z]*\.?\s*(\d{1,2})\s*[\/,]?\s*(\d{2,4})?/);
+    if (t) { var mi = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"].indexOf(t[1]);
+      if (mi >= 0) { var yr = t[3] ? (t[3].length === 2 ? 2000 + (+t[3]) : +t[3]) : new Date().getFullYear(); return yr + "-" + pad2(mi + 1) + "-" + pad2(+t[2]); } }
+    return "";
+  }
+
+  /* ================================================================
+     Classification
+     ================================================================ */
+  function normType(t) {
+    var v = String(t || "").toUpperCase().replace(/[^A-Z\/]/g, "");
+    if (v === "BT" || v === "B/T" || v === "BOBTAIL" || v === "B") return "BT";
+    if (v.charAt(0) === "L") return "L";
+    if (v.charAt(0) === "E" || v === "MT" || v === "M/T") return "E";
+    if (v.charAt(0) === "D") return "D";
+    return "";
+  }
+  function looksBobtail(s) { var v = String(s || "").toUpperCase().replace(/[\s.\-]/g, ""); return v === "BT" || v === "B/T" || v === "BOBTAIL" || v === "BOB"; }
+  function isBobtail(mv) {
+    if (normType(mv.type) === "BT" || looksBobtail(mv.trailer) || looksBobtail(mv.bol)) return true;
+    var hasLane = !!String(mv.from || "").trim() || !!String(mv.to || "").trim();
+    return hasLane && !String(mv.trailer || "").trim() && !String(mv.bol || "").trim() && !normType(mv.type);
+  }
+  function isEmptyMove(mv) { if (isBobtail(mv)) return false; return normType(mv.type) === "E" || /^(MT|M\/T|EMPTY)$/i.test(String(mv.trailer || "").trim()); }
+  function isDunnageMove(mv) { if (isBobtail(mv)) return false; var t = normType(mv.type); return t === "D" || (t === "L" && !!String(mv.bol || "").trim()); }
+  function moveClass(mv) { if (isBobtail(mv)) return "Bobtail"; var t = normType(mv.type); return t === "E" ? "Empty" : t === "D" ? "Dunnage" : t === "L" ? "Full goods" : "Unclassified"; }
+
+  var ALIAS = {};
+  function aliasIndex() {
+    var idx = {}, a = DB.aliases;
+    for (var canon in a) if (a.hasOwnProperty(canon)) {
+      idx[canon.toUpperCase().replace(/[^A-Z0-9]/g, "")] = canon;
+      for (var i = 0; i < a[canon].length; i++) idx[String(a[canon][i]).toUpperCase().replace(/[^A-Z0-9]/g, "")] = canon;
+    }
+    return idx;
+  }
+  function canonLoc(raw) {
+    if (!raw) return "";
+    var key = String(raw).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (ALIAS[key]) return ALIAS[key];
+    var best = "", bestLen = 0;
+    for (var k in ALIAS) if (ALIAS.hasOwnProperty(k) && k.length >= 3 && key.indexOf(k) >= 0 && k.length > bestLen) { best = ALIAS[k]; bestLen = k.length; }
+    return best || String(raw).trim();
+  }
+
+  /* ================================================================
+     Storage - artifact storage inside Claude, localStorage elsewhere
+     ================================================================ */
+  var store = {
+    mode: "memory", mem: {},
+    init: function () {
+      if (window.storage && typeof window.storage.get === "function") { this.mode = "artifact"; return; }
+      try { window.localStorage.setItem("__t", "1"); window.localStorage.removeItem("__t"); this.mode = "local"; } catch (e) { this.mode = "memory"; }
+    },
+    get: function (k) {
+      var self = this;
+      if (this.mode === "artifact") {
+        return window.storage.get(k, false).then(function (r) { return r ? r.value : null; })["catch"](function () { return null; });
+      }
+      return new Promise(function (res) {
+        if (self.mode === "local") { try { res(window.localStorage.getItem(k)); } catch (e) { res(null); } }
+        else res(self.mem[k] === undefined ? null : self.mem[k]);
+      });
+    },
+    set: function (k, v) {
+      var self = this;
+      if (this.mode === "artifact") return window.storage.set(k, v, false).then(function () { return true; });
+      return new Promise(function (res, rej) {
+        if (self.mode === "local") { try { window.localStorage.setItem(k, v); res(true); } catch (e) { rej(e); } }
+        else { self.mem[k] = v; res(true); }
+      });
+    },
+    del: function (k) {
+      var self = this;
+      if (this.mode === "artifact") return window.storage["delete"](k, false)["catch"](function () { });
+      return new Promise(function (res) {
+        if (self.mode === "local") { try { window.localStorage.removeItem(k); } catch (e) { } }
+        else delete self.mem[k];
+        res(true);
+      });
+    }
+  };
+
+  var DB_KEY = "runsheets_db";
+  var DB, PHOTOS = {}, OPEN = {}, TAB = "log", TALLY = "backhaul", DAYSEL = "", ADD_DRIVER = false;
+  var READQ = [], reading = false, readingId = "", readingSince = 0, lastCallAt = 0, saveT = null, EMBEDDED_USED = false, WEEK = 0, EMAILDAY = "", PASTE_OPEN = false;
+  var READ_TIMEOUT = 45000, READ_GAP = 6500, DEAD_AFTER = 70000;
+
+  function blankDB() {
+    return { v: 2, straightHours: 39.06, rate: "", thresholdMin: 0,
+      aliases: JSON.parse(JSON.stringify(DEFAULT_ALIASES)),
+      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-2.5-flash", emailTo: "", sheets: [] };
+  }
+  function seed() {
+    var d = blankDB();
+    d.sheets = [
+      { id: uid(), date: "2026-09-08", driver: "JOHN MRUCK", tractor: "92723", mileIn: "133859", mileOut: "134326",
+        start: "14:30", end: "01:30", comments: "", hasPhoto: false, dStart: "pending", dEnd: "pending",
+        moves: [
+          { id: uid(), from: "MISS", to: "ARMOUR", bol: "", type: "", trailer: "B/T", leave: "15:15", arrive: "15:30" },
+          { id: uid(), from: "ARMOUR", to: "MISS", bol: "4302091507", type: "L", trailer: "92239", leave: "16:15", arrive: "17:00" },
+          { id: uid(), from: "MISS", to: "ORILLIA", bol: "4302085458", type: "L", trailer: "92106", leave: "17:30", arrive: "19:30" },
+          { id: uid(), from: "ORILLIA", to: "QUAKER", bol: "", type: "E", trailer: "91408", leave: "20:00", arrive: "21:45" },
+          { id: uid(), from: "QUAKER", to: "CALEDON", bol: "113527788", type: "L", trailer: "3F0293", leave: "22:00", arrive: "00:15" },
+          { id: uid(), from: "CALEDON", to: "MISS", bol: "4302078577", type: "L", trailer: "92063", leave: "00:45", arrive: "01:15" }] },
+      { id: uid(), date: "2026-09-08", driver: "DENSON LINTON", tractor: "3837 PAC", mileIn: "202438", mileOut: "202063",
+        start: "13:30", end: "23:30", comments: "No MT Falbourne to Armour. Took MT 92239 from Falbourne to Armour.",
+        hasPhoto: false, dStart: "pending", dEnd: "pending",
+        moves: [
+          { id: uid(), from: "PEPSI TORONTO", to: "ARMOUR MISSISSAUGA", bol: "", type: "BT", trailer: "", leave: "14:00", arrive: "14:10" },
+          { id: uid(), from: "ARMOUR MISSISSAUGA", to: "PEPSI FRASERVILLE", bol: "17437070", type: "L", trailer: "92149", leave: "14:40", arrive: "16:17" },
+          { id: uid(), from: "PEPSI FRASERVILLE", to: "QUAKER PETERBOROUGH", bol: "", type: "E", trailer: "92149", leave: "16:43", arrive: "17:13" },
+          { id: uid(), from: "QUAKER PETERBOROUGH", to: "CALEDON RYDER WHS", bol: "113528277", type: "L", trailer: "92114", leave: "17:42", arrive: "20:15" },
+          { id: uid(), from: "CALEDON RYDER WHSE", to: "PEPSI TORONTO", bol: "1835497212", type: "L", trailer: "92113", leave: "20:46", arrive: "21:28" },
+          { id: uid(), from: "PEPSI TORONTO", to: "ARMOUR MISSISSAUGA", bol: "", type: "E", trailer: "92239", leave: "22:00", arrive: "22:28" },
+          { id: uid(), from: "ARMOUR MISSISSAUGA", to: "PEPSI TORONTO", bol: "", type: "BT", trailer: "", leave: "22:35", arrive: "22:50" }] }
+    ];
+    return d;
+  }
+
+  // A saved copy carries its data inside the file. Whichever is newer wins:
+  // the copy, or whatever this browser managed to keep.
+  function embedded() {
+    var node = el("embedded-data");
+    if (!node || !node.textContent.replace(/\s/g, "")) return null;
+    try { var o = JSON.parse(node.textContent); return (o && o.db && o.db.sheets) ? o : null; } catch (e) { return null; }
+  }
+  function load() {
+    store.init();
+    return store.get(DB_KEY).then(function (raw) {
+      DB = null;
+      if (raw) { try { DB = JSON.parse(raw); } catch (e) { DB = null; } }
+      var emb = embedded();
+      if (emb && (!DB || !DB.sheets || String(emb.db.savedAt || "") > String(DB.savedAt || ""))) {
+        DB = emb.db;
+        var ph = emb.photos || {};
+        for (var id in ph) if (ph.hasOwnProperty(id)) savePhoto(id, ph[id]);
+        EMBEDDED_USED = true;
+      }
+      if (!DB || !DB.sheets) DB = seed();
+      if (!DB.aliases) DB.aliases = JSON.parse(JSON.stringify(DEFAULT_ALIASES));
+      if (!DB.drivers || !DB.drivers.length) DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS));
+      if (DB.apiKey === undefined) DB.apiKey = "";
+      if (DB.geminiKey === undefined) DB.geminiKey = "";
+      if (!DB.geminiModel) DB.geminiModel = "gemini-2.5-flash";
+      if (DB.emailTo === undefined) DB.emailTo = "";
+      if (DB.straightHours === undefined) DB.straightHours = 39.06;
+      if (DB.thresholdMin === undefined) DB.thresholdMin = 0;
+      for (var i = 0; i < DB.sheets.length; i++) { DB.sheets[i].reading = false; }
+      ALIAS = aliasIndex();
+    });
+  }
+  // Debounced so typing in a field does not hammer storage.
+  function save() {
+    ALIAS = aliasIndex();
+    if (saveT) clearTimeout(saveT);
+    saveT = setTimeout(saveNow, 250);
+  }
+  function saveNow() {
+    saveT = null;
+    DB.savedAt = new Date().toISOString();
+    var copy = JSON.parse(JSON.stringify(DB));
+    for (var i = 0; i < copy.sheets.length; i++) { delete copy.sheets[i].reading; delete copy.sheets[i].readError; }
+    store.set(DB_KEY, JSON.stringify(copy))["catch"](function () {
+      toast("Could not save. Export a backup before you close this.");
+    });
+  }
+  function savePhoto(id, dataUrl, keepMemory) {
+    if (!keepMemory) PHOTOS[id] = dataUrl;
+    return store.set("runsheets_photo_" + id, dataUrl)["catch"](function () { toast("Photo too large to keep; the sheet data is saved."); });
+  }
+  function loadPhoto(id) {
+    if (PHOTOS[id] !== undefined) return Promise.resolve(PHOTOS[id]);
+    return store.get("runsheets_photo_" + id).then(function (v) { PHOTOS[id] = v || null; return PHOTOS[id]; });
+  }
+  function dropPhoto(id) { delete PHOTOS[id]; return store.del("runsheets_photo_" + id); }
+
+  var toastT = null;
+  function toast(msg) {
+    var t = el("toast"); if (!t) return;
+    t.textContent = msg; t.style.display = "block";
+    if (toastT) clearTimeout(toastT);
+    toastT = setTimeout(function () { t.style.display = "none"; }, 4500);
+  }
+
+  /* ================================================================
+     Week scope and overtime
+     ================================================================ */
+  // Everything on screen is scoped to one fiscal week. Default is this week; the
+  // strip in the header moves it.
+  function fiscalOfWeek(w) { return fiscal(isoOf(WEEK1 + (w - 1) * 7 * 86400000)); }
+  function activeWeek() { if (!WEEK) WEEK = fiscal(todayISO()).week; return fiscalOfWeek(WEEK); }
+  function weekCounts() {
+    var c = {};
+    for (var i = 0; i < DB.sheets.length; i++) { var w = fiscal(DB.sheets[i].date).week; c[w] = (c[w] || 0) + 1; }
+    return c;
+  }
+  function weekDates(f) { var out = [], s = parseISO(f.weekStart); for (var i = 0; i < 7; i++) out.push(isoOf(s + i * 86400000)); return out; }
+  function sheetsInWeek(f) { var set = {}, d = weekDates(f); for (var i = 0; i < 7; i++) set[d[i]] = 1; return DB.sheets.filter(function (s) { return set[s.date]; }); }
+  function findSheet(id) { for (var i = 0; i < DB.sheets.length; i++) if (DB.sheets[i].id === id) return DB.sheets[i]; return null; }
+
+  function assess(sh) {
+    var dr = driverByName(sh.driver);
+    var o = { sched: null, startDiff: 0, endDiff: 0, earlyMin: 0, lateMin: 0, worked: null, schedMin: null, flagged: false, startFlag: false, endFlag: false };
+    if (!dr || !sh.start || !sh.end) return o;
+    o.sched = dr; o.schedMin = span(dr.s, dr.e); o.worked = span(sh.start, sh.end);
+    o.startDiff = wrapDiff(mins(sh.start), mins(dr.s));
+    o.endDiff = wrapDiff(mins(sh.end), mins(dr.e));
+    o.earlyMin = Math.max(0, -o.startDiff); o.lateMin = Math.max(0, o.endDiff);
+    var th = +DB.thresholdMin || 0;
+    o.startFlag = Math.abs(o.startDiff) > th; o.endFlag = Math.abs(o.endDiff) > th;
+    o.flagged = o.startFlag || o.endFlag;
+    return o;
+  }
+  function bucket(t, decision, m) { if (decision === "approve") t.approved += m; else if (decision === "deny") t.denied += m; else t.pending += m; }
+  function otTotals(list) {
+    var t = { approved: 0, denied: 0, pending: 0, bobtails: 0, moves: 0, worked: 0 };
+    for (var i = 0; i < list.length; i++) {
+      var sh = list[i], a = assess(sh);
+      t.moves += sh.moves.length;
+      for (var m = 0; m < sh.moves.length; m++) if (isBobtail(sh.moves[m])) t.bobtails++;
+      if (a.worked) t.worked += a.worked;
+      if (a.startFlag && a.earlyMin > 0) bucket(t, sh.dStart, a.earlyMin);
+      if (a.endFlag && a.lateMin > 0) bucket(t, sh.dEnd, a.lateMin);
+    }
+    return t;
+  }
+  function sheetStatus(sh) {
+    var a = assess(sh);
+    if (sh.reading) return { k: "busy", label: "Reading the photo", a: a };
+    if (sh.readError) return { k: "review", label: "Could not read it", a: a };
+    if (!sh.driver) return { k: "review", label: "Driver missing", a: a };
+    if (!sh.start || !sh.end) return { k: "review", label: "Times missing", a: a };
+    if (!a.flagged) return { k: "clear", label: "On schedule", a: a };
+    var pend = 0;
+    if (a.startFlag && a.earlyMin > 0 && sh.dStart === "pending") pend += a.earlyMin;
+    if (a.endFlag && a.lateMin > 0 && sh.dEnd === "pending") pend += a.lateMin;
+    if (pend) return { k: "review", label: "Confirm " + fmtHrs(pend) + " h overtime", a: a };
+    var t = { approved: 0, denied: 0, pending: 0 };
+    if (a.startFlag && a.earlyMin > 0) bucket(t, sh.dStart, a.earlyMin);
+    if (a.endFlag && a.lateMin > 0) bucket(t, sh.dEnd, a.lateMin);
+    if (t.approved && t.denied) return { k: "clear", label: fmtHrs(t.approved) + " h approved, " + fmtHrs(t.denied) + " h denied", a: a };
+    if (t.approved) return { k: "clear", label: fmtHrs(t.approved) + " h overtime approved", a: a };
+    if (t.denied) return { k: "clear", label: fmtHrs(t.denied) + " h overtime denied", a: a };
+    return { k: "clear", label: "Off schedule, no overtime", a: a };
+  }
+
+  /* ================================================================
+     Tally builders
+     ================================================================ */
+  function laneKey(a, b) { return a + " \u2192 " + b; }
+  function buildBackhaul(list, dates) {
+    var cells = {}, unmatched = {}, known = {};
+    for (var g = 0; g < BACKHAUL.length; g++) for (var l = 0; l < BACKHAUL[g].length; l++) known[laneKey(BACKHAUL[g][l][0], BACKHAUL[g][l][1])] = 1;
+    for (var i = 0; i < list.length; i++) {
+      var sh = list[i], di = dates.indexOf(sh.date); if (di < 0) continue;
+      for (var m = 0; m < sh.moves.length; m++) {
+        var mv = sh.moves[m], key = laneKey(canonLoc(mv.from), canonLoc(mv.to)), bag = known[key] ? cells : unmatched;
+        if (!bag[key]) bag[key] = [];
+        if (!bag[key][di]) bag[key][di] = { n: 0, b: 0 };
+        bag[key][di].n++; if (isBobtail(mv)) bag[key][di].b++;
+      }
+    }
+    return { cells: cells, unmatched: unmatched };
+  }
+  function buildDestForm(form, list, dates, test) {
+    var cells = {}, unmatched = {}, known = {}, dests = {};
+    for (var g = 0; g < form.length; g++) { dests[form[g].dest] = 1; for (var o = 0; o < form[g].origins.length; o++) known[laneKey(form[g].origins[o], form[g].dest)] = 1; }
+    for (var i = 0; i < list.length; i++) {
+      var sh = list[i], di = dates.indexOf(sh.date); if (di < 0) continue;
+      for (var m = 0; m < sh.moves.length; m++) {
+        var mv = sh.moves[m]; if (!test(mv)) continue;
+        var to = canonLoc(mv.to), key = laneKey(canonLoc(mv.from), to);
+        if (known[key]) { if (!cells[key]) cells[key] = []; cells[key][di] = (cells[key][di] || 0) + 1; }
+        else if (dests[to]) { if (!unmatched[key]) unmatched[key] = []; unmatched[key][di] = (unmatched[key][di] || 0) + 1; }
+      }
+    }
+    return { cells: cells, unmatched: unmatched };
+  }
+  function cellText(n, b) { var p = n - b; if (b && p) return '<span class="cb">' + b + 'B</span> + ' + p; if (b) return '<span class="cb">' + b + 'B</span>'; return String(p); }
+  function cellPlain(n, b) { var p = n - b; if (b && p) return b + "B + " + p; if (b) return b + "B"; return String(p); }
+
+  /* ================================================================
+     Reading a photo with Claude
+     ================================================================ */
+  function extractPrompt() {
+    var R = roster(), names = [];
+    for (var i = 0; i < R.length; i++) names.push(R[i].n + " [" + R[i].sh + " " + R[i].s + "-" + R[i].e + "]");
+    return "This is a handwritten Pepsi Bottling Group transport driver trip sheet.\n\n" +
+      "Reply with ONE JSON object only. No preamble, no markdown fences.\n\n" +
+      '{"driver":"","date":"YYYY-MM-DD","tractor":"","start":"HH:MM","finish":"HH:MM","mileIn":"","mileOut":"","comments":"",' +
+      '"moves":[["from","to","bol","type","trailer","leave","arrive"]]}\n\n' +
+      "Rules:\n" +
+      "- driver must be one of these names, spelled exactly as here:\n  " + names.join("\n  ") + "\n" +
+      "- Every time in 24-hour HH:MM. The sheet writes 315P, 1215A, or bare 2:40. Use the driver's shift above to decide AM or PM; a noons shift runs past midnight.\n" +
+      "- type is L, E, D, BT or empty. If the trailer column says B/T, put B/T in trailer and leave type empty.\n" +
+      "- moves is an array of arrays, one per written row, in order. Skip blank rows.\n" +
+      "- Copy BOL and trailer numbers digit for digit.\n" +
+      "- Use \"\" for anything not on the sheet. Never invent a value.";
+  }
+
+  // Post JSON and always resolve to {ok,status,body}. fetch first; if the phone
+  // drops it ("Load failed" on iPhone), do the same request over XMLHttpRequest,
+  // which WebKit treats more kindly with large bodies. Both give up after 45 s.
+  function postJSON(url, headers, body) {
+    function viaXHR() {
+      return new Promise(function (res, rej) {
+        try {
+          var x = new XMLHttpRequest();
+          x.open("POST", url, true);
+          x.timeout = READ_TIMEOUT;
+          for (var k in headers) if (headers.hasOwnProperty(k)) x.setRequestHeader(k, headers[k]);
+          x.onload = function () { res({ ok: x.status >= 200 && x.status < 300, status: x.status, body: x.responseText }); };
+          x.onerror = function () { rej(new Error("The upload was dropped. Check your signal and tap Try again.")); };
+          x.ontimeout = function () { rej(new Error("No answer after 45 seconds. Tap Try again.")); };
+          x.send(body);
+        } catch (e) { rej(e); }
+      });
+    }
+    function viaFetch() {
+      var ctrl = (typeof AbortController === "function") ? new AbortController() : null;
+      var opts = { method: "POST", headers: headers, body: body };
+      if (ctrl) opts.signal = ctrl.signal;
+      var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, READ_TIMEOUT);
+      return fetch(url, opts).then(function (r) {
+        clearTimeout(timer);
+        return r.text().then(function (t) { return { ok: r.ok, status: r.status, body: t }; });
+      }, function (e) {
+        clearTimeout(timer);
+        if (e && e.name === "AbortError") throw new Error("No answer after 45 seconds. Tap Try again.");
+        throw e;
+      });
+    }
+    if (typeof fetch !== "function") return viaXHR();
+    return viaFetch()["catch"](function (e) {
+      var m = String(e && e.message || "");
+      if (/45 seconds/.test(m)) throw e;          // a real timeout; don't double the wait
+      return viaXHR();                            // network-level failure: try the other transport
+    });
+  }
+
+  function callClaude(b64, useKey) {
+    var headers = { "Content-Type": "application/json" };
+    if (useKey) {
+      headers["x-api-key"] = String(DB.apiKey || "").trim();
+      headers["anthropic-version"] = "2023-06-01";
+      headers["anthropic-dangerous-direct-browser-access"] = "true";
+    }
+    return postJSON("https://api.anthropic.com/v1/messages", headers, JSON.stringify({
+        model: useKey ? "claude-sonnet-5" : "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
+          { type: "text", text: extractPrompt() } ] }]
+      })).then(function (res) { res.who = "claude"; return res; })
+      .then(function (res) {
+        if (!res.ok) return res;
+        var data = JSON.parse(res.body), text = "";
+        for (var i = 0; i < (data.content || []).length; i++) if (data.content[i].type === "text") text += data.content[i].text;
+        res.text = text; return res;
+      });
+  }
+
+  // Google's free tier. The key rides in the URL, which is how their REST API expects it.
+  function callGemini(b64) {
+    var key = String(DB.geminiKey || "").trim(), model = String(DB.geminiModel || "gemini-2.5-flash").trim();
+    return postJSON("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(key),
+      { "Content-Type": "application/json" },
+      JSON.stringify({
+        contents: [{ parts: [
+          { inline_data: { mime_type: "image/jpeg", data: b64 } },
+          { text: extractPrompt() } ] }],
+        generationConfig: { temperature: 0, responseMimeType: "application/json" }
+      })).then(function (res) { res.who = "gemini"; return res; })
+      .then(function (res) {
+        if (!res.ok) return res;
+        var data = JSON.parse(res.body), text = "";
+        var c = (data.candidates || [])[0];
+        if (c && c.content && c.content.parts) for (var i = 0; i < c.content.parts.length; i++) if (c.content.parts[i].text) text += c.content.parts[i].text;
+        res.text = text; return res;
+      });
+  }
+
+  function readerAvailable() {
+    if (String(DB.geminiKey || "").trim()) return "gemini";
+    if (String(DB.apiKey || "").trim()) return "claude";
+    if (store.mode === "artifact") return "claude-free";
+    return "";
+  }
+
+  function readSheet(sh) {
+    var photo = PHOTOS[sh.id], parts = String(photo || "").split(",");
+    if (parts.length < 2) { finishRead(sh, "The photo did not save. Take it again."); return; }
+    var which = readerAvailable();
+    var p;
+    if (which === "gemini") p = callGemini(parts[1]);
+    else if (which === "claude") p = callClaude(parts[1], true);
+    else if (which === "claude-free") p = callClaude(parts[1], false).then(function (res) {
+      if (!res.ok && String(DB.apiKey || "").trim()) return callClaude(parts[1], true);
+      return res;
+    });
+    else { finishRead(sh, "No reader set up. Add a free Gemini key on the Setup tab."); return; }
+
+    p.then(function (res) {
+      // Free tier says slow down: wait and go again once, automatically.
+      if (res.status === 429 && !sh.retried) {
+        sh.retried = true;
+        return new Promise(function (resolve) { setTimeout(resolve, 32000); }).then(function () {
+          return which === "gemini" ? callGemini(parts[1]) : callClaude(parts[1], which === "claude");
+        });
+      }
+      return res;
+    }).then(function (res) {
+      if (!res.ok) throw new Error(apiError(res));
+      applyExtract(sh, res.text);
+      sh.auto = true;
+      var fw = fiscal(sh.date).week;
+      if (fw !== WEEK) toast((sh.driver || "That sheet") + " is dated " + prettyDate(sh.date) + ", so it went to W" + fw + ". Tap W" + fw + " to see it.");
+      finishRead(sh, "");
+    })["catch"](function (e) {
+      var msg = (e && e.message) ? e.message : "The request did not go through. Check your signal.";
+      if (/dropped|Load failed|Failed to fetch|NetworkError|network/i.test(msg) && (sh.netTry || 0) < 2) {
+        sh.netTry = (sh.netTry || 0) + 1;
+        // Second go sends a much smaller image; big bodies are what phones drop.
+        if (sh.netTry === 2 && PHOTOS[sh.id]) {
+          reshrink(PHOTOS[sh.id], 800, 0.5, function (small) { PHOTOS[sh.id] = small; setTimeout(function () { readSheet(sh); }, 2000); });
+          return;
+        }
+        setTimeout(function () { readSheet(sh); }, 3000);
+        return;
+      }
+      sh.netTry = 0;
+      finishRead(sh, msg);
+    });
+  }
+  function finishRead(sh, err) {
+    sh.reading = false; sh.readError = err; sh.retried = false; sh.netTry = 0;
+    reading = false; readingId = ""; lastCallAt = Date.now();
+    save();
+    try { render(); } catch (e) { }
+    setTimeout(pump, 30);
+  }
+  function apiError(res) {
+    var msg = ""; try { var j = JSON.parse(res.body); if (j.error && j.error.message) msg = j.error.message; } catch (e) { }
+    if (res.status === 401 || res.status === 403) {
+      return hasKey ? "The API key was rejected. Check it on the Setup tab."
+        : "Automatic reading works when this is opened inside the Claude app. Open it there, or add an API key on the Setup tab.";
+    }
+    if (res.status === 429) return "Busy right now. Wait a moment and tap Try again.";
+    if (res.status >= 500) return "Anthropic returned an error. Try again shortly.";
+    return msg || ("Request failed (" + res.status + ").");
+  }
+  function applyExtract(sh, text) {
+    var t = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
+    var i = t.indexOf("{"), j = t.lastIndexOf("}");
+    if (i < 0 || j < i) throw new Error("Could not make out the sheet. Try a straighter, brighter photo.");
+    var o = JSON.parse(t.slice(i, j + 1));
+    var nm = matchDriver(o.driver); if (nm) sh.driver = nm;
+    var dt = normDate(o.date); if (dt) sh.date = dt;
+    if (o.tractor) sh.tractor = String(o.tractor);
+    var st = normTime(o.start), fi = normTime(o.finish);
+    if (st) sh.start = st; if (fi) sh.end = fi;
+    if (o.mileIn) sh.mileIn = String(o.mileIn);
+    if (o.mileOut) sh.mileOut = String(o.mileOut);
+    if (o.comments) sh.comments = String(o.comments);
+    var rows = o.moves || [], moves = [];
+    for (var m = 0; m < rows.length; m++) {
+      var r = rows[m]; if (!r) continue;
+      var a = Array.isArray(r) ? r : [r.from, r.to, r.bol, r.type, r.trailer, r.leave, r.arrive];
+      if (!String(a[0] || "").trim() && !String(a[1] || "").trim()) continue;
+      moves.push({ id: uid(), from: String(a[0] || ""), to: String(a[1] || ""), bol: String(a[2] || ""), type: String(a[3] || ""),
+        trailer: String(a[4] || ""), leave: normTime(a[5]), arrive: normTime(a[6]) });
+    }
+    if (!moves.length) moves.push(blankMove());
+    sh.moves = moves; sh.dStart = "pending"; sh.dEnd = "pending";
+  }
+  function pump() {
+    if (reading) {
+      // If the phone killed the request while we were in the background, the flag is a lie. Reset it.
+      if (Date.now() - readingSince > DEAD_AFTER) {
+        var dead = findSheet(readingId);
+        reading = false; readingId = "";
+        if (dead) { dead.reading = false; dead.readError = "The phone dropped the connection mid-read. Tap Try again."; save(); try { render(); } catch (e) { } }
+      } else return;
+    }
+    if (!READQ.length) { try { render(); } catch (e) { } return; }
+    // Space the calls out so a stack of sheets stays inside the free-tier limit.
+    var wait = Math.max(0, READ_GAP - (Date.now() - lastCallAt));
+    if (wait > 0 && !pump.t) { pump.t = setTimeout(function () { pump.t = null; pump(); }, wait); return; }
+    if (wait > 0) return;
+    var next = READQ.shift();
+    var sh = findSheet(next); if (!sh) { pump(); return; }
+    if (!PHOTOS[sh.id]) { loadPhoto(sh.id).then(function () { READQ.unshift(sh.id); pump(); }); return; }
+    reading = true; readingId = sh.id; readingSince = Date.now();
+    sh.reading = true; sh.readError = "";
+    try { render(); } catch (e) { }
+    readSheet(sh);
+  }
+  // Everything queued or stuck, in one number for the progress line.
+  function readProgress() {
+    var waiting = READQ.length + (reading ? 1 : 0), total = 0;
+    for (var i = 0; i < DB.sheets.length; i++) if (DB.sheets[i].reading) total++;
+    return { waiting: waiting, total: Math.max(total, waiting) };
+  }
+  // Sheets that have a photo but were never read: after a reload, or after a stall.
+  function unreadSheets(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (s.hasPhoto && !s.driver && !s.moves.some(function (m) { return m.from || m.to; }) && !s.reading && READQ.indexOf(s.id) < 0) out.push(s.id);
+    }
+    return out;
+  }
+  function parsePaste(text) {
+    var blocks = String(text).split(/^\s*-{3,}\s*$/m), out = [], problems = [];
+    for (var bi = 0; bi < blocks.length; bi++) {
+      var lines = blocks[bi].split("\n"), sh = null, inMoves = false;
+      for (var li = 0; li < lines.length; li++) {
+        var ln = lines[li].trim();
+        if (!ln) continue;
+        if (/^MOVES\b/i.test(ln)) { inMoves = true; continue; }
+        var kv = ln.match(/^([A-Z ]{3,12}):\s*(.*)$/i);
+        if (kv && !inMoves) {
+          var key = kv[1].toUpperCase().replace(/\s/g, ""), v = kv[2].trim();
+          if (!sh) sh = blankSheet(todayISO());
+          if (key === "DRIVER") { var nm = matchDriver(v); if (nm) sh.driver = nm; else if (v) problems.push("No driver matches " + v); }
+          else if (key === "DATE") { var dt = normDate(v); if (dt) sh.date = dt; }
+          else if (key === "TRACTOR") sh.tractor = v;
+          else if (key === "START") sh.start = normTime(v);
+          else if (key === "FINISH" || key === "END") sh.end = normTime(v);
+          else if (key === "MILEIN") sh.mileIn = v;
+          else if (key === "MILEOUT") sh.mileOut = v;
+          else if (key === "COMMENTS") sh.comments = v;
+          continue;
+        }
+        if (ln.indexOf("|") < 0) continue;
+        var c = ln.split("|");
+        if (/^\s*from\s*$/i.test(c[0])) continue;
+        if (!sh) sh = blankSheet(todayISO());
+        function cel(i) { return (c[i] || "").trim(); }
+        if (!cel(0) && !cel(1)) continue;
+        if (!sh.parsedMoves) { sh.moves = []; sh.parsedMoves = 1; }
+        sh.moves.push({ id: uid(), from: cel(0), to: cel(1), bol: cel(2), type: cel(3), trailer: cel(4), leave: normTime(cel(5)), arrive: normTime(cel(6)) });
+      }
+      if (sh && (sh.driver || (sh.moves && sh.moves.length))) {
+        delete sh.parsedMoves;
+        if (!sh.moves.length) sh.moves.push(blankMove());
+        sh.hasPhoto = false; sh.reading = false;
+        out.push(sh);
+      }
+    }
+    return { sheets: out, problems: problems };
+  }
+
+  function blankMove() { return { id: uid(), from: "", to: "", bol: "", type: "", trailer: "", leave: "", arrive: "" }; }
+  function blankSheet(date) {
+    return { id: uid(), date: date, driver: "", tractor: "", mileIn: "", mileOut: "", start: "", end: "", comments: "",
+      hasPhoto: false, dStart: "pending", dEnd: "pending", reading: false, readError: "", auto: false, moves: [blankMove()] };
+  }
+
+  /* ================================================================
+     Render
+     ================================================================ */
+  function render() {
+    var f = activeWeek(), dates = weekDates(f), list = sheetsInWeek(f), t = otTotals(list);
+    var pend = 0;
+    for (var i = 0; i < list.length; i++) if (sheetStatus(list[i]).k === "review") pend++;
+
+    var todayW = fiscal(todayISO()).week, counts = weekCounts(), lo = WEEK, hi = WEEK;
+    for (var wk in counts) if (counts.hasOwnProperty(wk)) { lo = Math.min(lo, +wk); hi = Math.max(hi, +wk); }
+    lo = Math.max(1, Math.min(lo, todayW) - 3); hi = Math.min(53, Math.max(hi, todayW) + 4);
+
+    var h = '<div class="top"><div class="top-in"><h1>Run sheets</h1>' +
+      '<div class="stamp">Period <b>' + f.period + '</b>&ensp;Week <b>' + f.wop + '</b>&ensp;<b>' + shortDate(dates[0]) + '&ndash;' + shortDate(dates[6]) + '</b></div></div>';
+    h += '<div class="wk-bar"><button class="wk-arrow" data-week="' + (WEEK - 1) + '" aria-label="Previous week"' + (WEEK <= 1 ? ' disabled' : '') + '>&#8249;</button><div class="wk-strip" id="wkstrip">';
+    for (var w = lo; w <= hi; w++) {
+      var fw = fiscalOfWeek(w), n = counts[w] || 0;
+      h += '<button class="wk' + (w === WEEK ? ' on' : '') + (w === todayW ? ' now' : '') + '" data-week="' + w + '">' +
+        '<span class="wn">W' + w + '</span><span class="wp">P' + fw.period + ' W' + fw.wop + '</span>' +
+        '<span class="wc">' + (n ? n + (n === 1 ? ' sheet' : ' sheets') : (w === todayW ? 'this week' : '&nbsp;')) + '</span></button>';
+    }
+    h += '</div><button class="wk-arrow" data-week="' + (WEEK + 1) + '" aria-label="Next week"' + (WEEK >= 53 ? ' disabled' : '') + '>&#8250;</button></div></div>';
+    h += '<div class="nav"><div class="nav-in">' +
+      navBtn("log", ICON.log, "Log", pend) + navBtn("hours", ICON.clock, "Hours") + navBtn("tally", ICON.grid, "Tallies") +
+      navBtn("export", ICON.out, "Export") + navBtn("setup", ICON.cog, "Setup") + '</div></div>';
+    h += '<main>';
+    if (TAB === "log") h += viewLog(list, f, dates);
+    if (TAB === "hours") h += viewHours(list, t);
+    if (TAB === "tally") h += viewTally(list, dates);
+    if (TAB === "export") h += viewExport(list, f);
+    if (TAB === "setup") h += viewSetup();
+    h += '</main>';
+    el("app").innerHTML = h;
+    wire();
+    try {
+      var strip = el("wkstrip"), on = strip && strip.querySelector(".wk.on");
+      if (on && strip) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2);
+    } catch (e) { }
+  }
+  function navBtn(k, icon, label, pip) {
+    return '<button data-tab="' + k + '" aria-selected="' + (TAB === k) + '">' + icon + '<span>' + label + '</span>' + (pip ? '<span class="pip">' + pip + '</span>' : '') + '</button>';
+  }
+
+  /* ---- log ---- */
+  function openedAsFile() {
+    var p = String(window.location && window.location.protocol || "");
+    return p === "file:" || p === "content:" || p === "blob:" || store.mode === "memory";
+  }
+  function fileBanner() {
+    if (!openedAsFile()) return '';
+    var dirty = String(DB.savedAt || "") > String(DB.copyAt || "");
+    return '<div class="notice' + (dirty && DB.sheets.length ? ' bad' : '') + '" style="margin-bottom:14px"><strong>Opened as a file.</strong> This phone may not keep your work between opens. ' +
+      (dirty && DB.sheets.length ? 'There are changes since your last saved copy. ' : '') +
+      '<a href="#" data-act="gosave" style="color:var(--acc2);font-weight:600">Save a copy with everything in it</a>, and open that copy next time. Or host it at a link once, on the Setup tab, and this goes away for good.</div>';
+  }
+
+  function viewLog(list, f, dates) {
+    var h = fileBanner();
+    h += '<label class="btn brand big">' + ICON.camera + '<span>Photograph a run sheet</span>' +
+      '<input type="file" accept="image/*" capture="environment" data-act="shoot" class="hide"></label>';
+    h += '<div class="row" style="justify-content:space-between;margin-top:8px">' +
+      '<label class="btn quiet sm" style="margin:0">Choose from photos<input type="file" accept="image/*" multiple data-act="shoot" class="hide"></label>' +
+      '<span class="small">' + (readerAvailable() === "gemini" ? "Sheets are read with Gemini." : readerAvailable() === "claude" ? "Sheets are read with your Anthropic key." : readerAvailable() === "claude-free" ? "Sheets are read automatically." : "Add a free Gemini key on the Setup tab and photos fill themselves in.") + '</span></div>';
+
+    // week strip
+    var counts = [0, 0, 0, 0, 0, 0, 0], today = todayISO();
+    for (var i = 0; i < list.length; i++) { var di = dates.indexOf(list[i].date); if (di >= 0) counts[di]++; }
+    h += '<div class="week">';
+    for (var d = 0; d < 7; d++) {
+      h += '<button data-day="' + dates[d] + '" aria-pressed="' + (DAYSEL === dates[d]) + '" class="' + (dates[d] === today ? "today" : "") + '">' +
+        '<span class="d">' + DAYS[d].charAt(0) + DAYS[d].slice(1, 2).toLowerCase() + '</span><span class="n">' + (+dates[d].split("-")[2]) + '</span>' +
+        '<span class="c">' + (counts[d] ? '<b>' + counts[d] + '</b>' : '&ndash;') + '</span></button>';
+    }
+    h += '</div>';
+    if (PASTE_OPEN) h += pastePanel();
+    var prog = readProgress(), unread = readerAvailable() ? unreadSheets(list) : [];
+    if (prog.waiting) h += '<div class="notice" style="display:flex;align-items:center;gap:10px"><span class="spin"></span><span>Reading ' + prog.waiting + ' sheet' + (prog.waiting === 1 ? '' : 's') + '. Keep the app open; about six seconds each.</span></div>';
+    else if (unread.length) h += '<div class="notice bad" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>' + unread.length + ' photo' + (unread.length === 1 ? ' has' : 's have') + ' not been read yet.</span><button class="btn sm primary" data-act="readall">Read ' + (unread.length === 1 ? 'it' : 'them') + ' now</button></div>';
+    if (DAYSEL) h += '<div class="row" style="justify-content:space-between"><button class="btn sm" data-act="emailsel">Email ' + prettyDate(DAYSEL) + ' to work</button><button class="btn quiet sm" data-act="allday">Show the whole week</button></div>';
+
+    var shown = DAYSEL ? list.filter(function (s) { return s.date === DAYSEL; }) : list;
+    if (!shown.length) {
+      h += '<div class="card"><div class="empty">' + (DAYSEL ? 'Nothing logged on ' + prettyDate(DAYSEL) + '.' : 'W' + f.week + ' is empty.<br>Photograph the first run sheet above.') + '</div></div>';
+      return h;
+    }
+    shown = shown.slice().sort(function (a, b) { if (a.date !== b.date) return a.date < b.date ? 1 : -1; return (a.driver || "zzz") < (b.driver || "zzz") ? -1 : 1; });
+    var last = "";
+    for (var k = 0; k < shown.length; k++) {
+      if (shown[k].date !== last) { last = shown[k].date; h += '<div class="dayhead">' + prettyDate(last) + '</div>'; }
+      h += sheetRow(shown[k]);
+    }
+    return h;
+  }
+
+  function pastePanel() {
+    return '<div class="card" style="border-color:var(--acc)"><div class="card-h"><h2>Paste sheets</h2></div><div class="card-b">' +
+      '<p class="muted">Send the photos to Claude in a chat, ask it to write them out in this app\u2019s format, then paste the reply here. No network needed on this end, so it never fails.</p>' +
+      '<textarea id="pastebox" placeholder="DRIVER: ...&#10;DATE: ...&#10;MOVES&#10;from | to | bol | type | trailer | leave | arrive" style="min-height:190px;font-size:13.5px;margin-top:12px"></textarea>' +
+      '<div class="row" style="margin-top:10px"><button class="btn primary" data-act="dopaste">Add these sheets</button>' +
+      '<button class="btn quiet" data-act="closepaste">Cancel</button></div></div></div>';
+  }
+
+  function sheetRow(sh) {
+    var st = sheetStatus(sh), open = !!OPEN[sh.id], bob = 0;
+    for (var m = 0; m < sh.moves.length; m++) if (isBobtail(sh.moves[m])) bob++;
+    var h = '<div class="sheet ' + st.k + '" data-sid="' + sh.id + '"><div class="shead">';
+    h += '<button class="stoggle" data-act="toggle" aria-expanded="' + open + '"><span class="smain">' +
+      '<span class="sname">' + esc(sh.driver || "Unidentified sheet") + '</span>' +
+      '<span class="smeta"><span>' + sh.moves.length + ' move' + (sh.moves.length === 1 ? '' : 's') + '</span>' +
+      (bob ? '<span><em>' + bob + ' bobtail' + (bob === 1 ? '' : 's') + '</em></span>' : '') +
+      (sh.auto ? '<span>read from photo</span>' : '') + '</span>' +
+      '<span class="sstat">' + (st.k === "busy" ? '<span class="spin"></span>' : '') + esc(st.label) + '</span></span>' +
+      '<span class="chev">' + (open ? ICON.up : ICON.down) + '</span></button>';
+    h += '<button class="ibtn" data-act="delsheet" aria-label="Delete" title="Delete">' + ICON.trash + '</button></div>';
+    if (open) h += '<div class="sbody">' + sheetBody(sh, st.a) + '</div>';
+    return h + '</div>';
+  }
+
+  function sheetBody(sh, a) {
+    var fi = fiscal(sh.date), h = '';
+    if (sh.hasPhoto) {
+      var p = PHOTOS[sh.id];
+      if (p) h += '<img class="photo" src="' + p + '" alt="The paper run sheet">';
+      else if (p === undefined) { h += '<div class="photo" style="display:flex;align-items:center;justify-content:center;min-height:80px"><span class="spin"></span></div>'; loadPhoto(sh.id).then(function () { render(); }); }
+    }
+    if (sh.reading) h += '<div class="notice"><span class="spin" style="vertical-align:-2px;margin-right:9px"></span>Reading the sheet.' +
+      (readingId === sh.id ? '' : ' Waiting its turn.') + ' <button class="btn sm quiet" data-act="cancelread" style="margin-left:6px">Cancel</button></div>';
+    else if (sh.hasPhoto && !sh.driver && !sh.readError && readerAvailable() && !sh.moves.some(function (m) { return m.from || m.to; }))
+      h += '<div class="notice bad" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>This photo has not been read yet.</span><button class="btn sm primary" data-act="reread">Read it now</button></div>';
+    if (sh.readError) h += '<div class="notice bad"><strong>Could not read the photo.</strong><br>' + esc(sh.readError) +
+      '<div class="row" style="margin-top:10px"><button class="btn sm" data-act="reread">Try again</button><button class="btn sm quiet" data-act="clearerr">Fill it in myself</button></div></div>';
+    if (a.flagged) h += decisions(sh, a);
+
+    h += '<div class="grid"><label>Driver<select data-f="driver">' + driverOptions(sh.driver) + '</select></label>' +
+      '<label>Date<input type="date" data-f="date" value="' + esc(sh.date) + '"></label></div>';
+    h += '<div class="pills"><span class="pill">Period <b>' + fi.period + '</b></span><span class="pill">Week <b>' + fi.wop + '</b></span><span class="pill"><b>' + DAYS[fi.dow] + '</b></span>' +
+      (a.sched ? '<span class="pill">Scheduled <b>' + a.sched.s + '&ndash;' + a.sched.e + '</b></span>' : '') + '</div>';
+    h += '<div class="grid"><label>Start time<input type="time" data-f="start" value="' + esc(sh.start) + '"></label>' +
+      '<label>Finish time<input type="time" data-f="end" value="' + esc(sh.end) + '"></label>' +
+      '<label>Tractor<input type="text" data-f="tractor" value="' + esc(sh.tractor) + '"></label></div>';
+
+    h += '<h3 style="margin:12px 0 10px">Moves</h3><div class="mwrap"><table class="moves"><thead><tr>' +
+      '<th style="width:20%">From</th><th style="width:20%">To</th><th style="width:17%">BOL</th><th style="width:11%">Type</th>' +
+      '<th style="width:15%">Trailer</th><th style="width:9%">Leave</th><th style="width:9%">Arrive</th><th></th></tr></thead><tbody>';
+    for (var i = 0; i < sh.moves.length; i++) h += moveRow(sh.moves[i]);
+    h += '</tbody></table></div><button class="btn" data-act="addmove" style="width:100%;margin-top:12px">Add a move</button>';
+
+    h += '<details class="more"><summary>Mileage and comments</summary><div class="grid">' +
+      '<label>Mileage in<input type="text" inputmode="numeric" data-f="mileIn" value="' + esc(sh.mileIn) + '"></label>' +
+      '<label>Mileage out<input type="text" inputmode="numeric" data-f="mileOut" value="' + esc(sh.mileOut) + '"></label>' +
+      '<label>Total<input type="text" readonly value="' + mileTotal(sh) + '"></label></div>' +
+      '<label>Comments<textarea data-f="comments">' + esc(sh.comments) + '</textarea></label>' +
+      (sh.hasPhoto ? '<button class="btn sm quiet" data-act="rmphoto">Remove the photo</button>' : '') + '</details>';
+    return h;
+  }
+  function mileTotal(sh) { var a = parseInt(String(sh.mileIn).replace(/\D/g, ""), 10), b = parseInt(String(sh.mileOut).replace(/\D/g, ""), 10); return (isNaN(a) || isNaN(b)) ? "" : String(Math.abs(b - a)); }
+  function driverOptions(sel) {
+    var h = '<option value="">Pick a driver</option>', R = roster();
+    for (var i = 0; i < R.length; i++) h += '<option value="' + esc(R[i].n) + '"' + (R[i].n === sel ? ' selected' : '') + '>' + esc(R[i].n) + ' (' + R[i].loc + ')</option>';
+    return h;
+  }
+  function moveRow(mv) {
+    var c = moveClass(mv), tag = c === "Bobtail" ? '<span class="tag b">B</span>' : c === "Unclassified" ? '<span class="tag q">?</span>' : '<span class="tag">' + c.charAt(0) + '</span>';
+    return '<tr data-mid="' + mv.id + '">' +
+      '<td><input type="text" data-m="from" value="' + esc(mv.from) + '" list="loclist" autocapitalize="characters"></td>' +
+      '<td><input type="text" data-m="to" value="' + esc(mv.to) + '" list="loclist" autocapitalize="characters"></td>' +
+      '<td><input type="text" data-m="bol" value="' + esc(mv.bol) + '" inputmode="numeric"></td>' +
+      '<td><select data-m="type">' + opt("", "\u2013", mv.type) + opt("L", "L", mv.type) + opt("E", "E", mv.type) + opt("D", "D", mv.type) + opt("BT", "BT", mv.type) + '</select></td>' +
+      '<td><input type="text" data-m="trailer" value="' + esc(mv.trailer) + '" autocapitalize="characters" placeholder="or B/T"></td>' +
+      '<td><input type="time" data-m="leave" value="' + esc(mv.leave) + '"></td>' +
+      '<td><input type="time" data-m="arrive" value="' + esc(mv.arrive) + '"></td>' +
+      '<td style="white-space:nowrap">' + tag + ' <button class="btn sm" data-act="delmove" aria-label="Delete move" style="min-width:36px;padding:0">&times;</button></td></tr>';
+  }
+  function opt(v, label, cur) { return '<option value="' + v + '"' + (normType(cur) === v || (v === "" && !normType(cur)) ? ' selected' : '') + '>' + label + '</option>'; }
+
+  function decisions(sh, a) {
+    var h = '';
+    if (a.startFlag) {
+      var early = a.startDiff < 0;
+      h += decisionCard(sh, "dStart", early ? "Started " + fmtMin(-a.startDiff) + " early" : "Started " + fmtMin(a.startDiff) + " late",
+        "Scheduled " + a.sched.s + ", clocked " + sh.start + ". " + (early ? fmtHrs(-a.startDiff) + " h outside the regular shift." : "No overtime from a late start."), early ? -a.startDiff : 0);
+    }
+    if (a.endFlag) {
+      var late = a.endDiff > 0;
+      h += decisionCard(sh, "dEnd", late ? "Finished " + fmtMin(a.endDiff) + " late" : "Finished " + fmtMin(-a.endDiff) + " early",
+        "Scheduled " + a.sched.e + ", clocked " + sh.end + ". " + (late ? fmtHrs(a.endDiff) + " h outside the regular shift." : "No overtime from an early finish."), late ? a.endDiff : 0);
+    }
+    if (a.worked !== null && a.schedMin !== null) h += '<p class="small" style="margin:-4px 0 12px">Worked ' + fmtHrs(a.worked) + ' h against a scheduled ' + fmtHrs(a.schedMin) + ' h.</p>';
+    return h;
+  }
+  function decisionCard(sh, field, line, detail, otMin) {
+    var st = sh[field] || "pending", done = st === "approve" || st === "deny";
+    var h = '<div class="decision' + (done ? " done" : "") + '"><div class="t">' + esc(line) + (otMin ? ' &mdash; ' + fmtHrs(otMin) + ' h at 1.5&times;' : '') + '</div><div class="d">' + esc(detail) + '</div>';
+    if (otMin) h += '<div class="decide"><button data-act="decide" data-field="' + field + '" data-k="approve" data-on="' + (st === "approve" ? 1 : 0) + '">Approve overtime</button>' +
+      '<button data-act="decide" data-field="' + field + '" data-k="deny" data-on="' + (st === "deny" ? 1 : 0) + '">Deny</button></div>';
+    return h + '</div>';
+  }
+
+  /* ---- hours ---- */
+  function viewHours(list, t) {
+    var rate = parseFloat(DB.rate), otH = hrs(t.approved), stH = parseFloat(DB.straightHours); if (isNaN(stH)) stH = 0;
+    var h = '<div class="stats">' + stat("Bobtails", t.bobtails) + stat("Straight time", stH.toFixed(2) + " h") +
+      stat("Overtime approved", otH.toFixed(2) + " h", t.approved ? "good" : "") + stat("Paid at 1.5\u00d7", (Math.round(otH * 150) / 100).toFixed(2) + " h") +
+      stat("Awaiting decision", hrs(t.pending).toFixed(2) + " h", t.pending ? "hot" : "") + stat("Denied", hrs(t.denied).toFixed(2) + " h");
+    if (!isNaN(rate) && rate > 0) h += stat("Straight pay", "$" + (stH * rate).toFixed(2)) + stat("Overtime pay", "$" + (otH * rate * 1.5).toFixed(2)) + stat("Saved by denials", "$" + (hrs(t.denied) * rate * 1.5).toFixed(2));
+    h += '</div>';
+    h += '<div class="card"><div class="card-b"><div class="grid">' +
+      '<label>Straight time hours<input type="text" inputmode="decimal" data-g="straightHours" value="' + esc(DB.straightHours) + '"></label>' +
+      '<label>Hourly rate, optional<input type="text" inputmode="decimal" data-g="rate" value="' + esc(DB.rate) + '" placeholder="39.06"></label>' +
+      '<label>Flag anything over<select data-g="thresholdMin">' + thOpt(0, "any difference") + thOpt(5, "5 min") + thOpt(10, "10 min") + thOpt(15, "15 min") + thOpt(30, "30 min") + '</select></label></div>' +
+      '<p class="small" style="margin:0">Overtime is minutes worked outside the regular shift. Only approved minutes count.</p></div></div>';
+    var any = false, body = '';
+    for (var i = 0; i < list.length; i++) {
+      var sh = list[i], a = assess(sh); if (!a.flagged) continue; any = true;
+      body += '<div class="card" data-sid="' + sh.id + '"><div class="card-h"><div><h3>' + esc(sh.driver) + '</h3><div class="small">' + prettyDate(sh.date) + '</div></div></div><div class="card-b">' + decisions(sh, a) + '</div></div>';
+    }
+    h += '<h2 style="margin:20px 0 12px">Times outside the schedule</h2>';
+    h += any ? body : '<div class="card"><div class="empty">Every driver this week started and finished on schedule.</div></div>';
+    return h;
+  }
+  function thOpt(v, label) { return '<option value="' + v + '"' + (+DB.thresholdMin === v ? ' selected' : '') + '>' + label + '</option>'; }
+  function stat(k, v, cls) { return '<div class="stat ' + (cls || "") + '"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+
+  /* ---- tallies ---- */
+  function viewTally(list, dates) {
+    var h = '<div class="seg">' + segBtn("backhaul", "Back haul") + segBtn("empty", "Empty loads") + segBtn("dunnage", "Dunnage") + '</div>';
+    if (TALLY === "backhaul") h += tallyBackhaul(list, dates);
+    else if (TALLY === "empty") h += tallyDest(EMPTY_FORM, list, dates, isEmptyMove, "Empty and M/T moves. Bobtails are excluded; they show on the back haul tally.");
+    else h += tallyDest(DUNNAGE_FORM, list, dates, isDunnageMove, "Dunnage and full goods coming back in. A back haul with a BOL is full goods; no BOL is dunnage.");
+    return h;
+  }
+  function segBtn(k, label) { return '<button data-tally="' + k + '" aria-pressed="' + (TALLY === k) + '">' + label + '</button>'; }
+  function dayHead(dates) {
+    var h = '<tr><th class="lane">Origin &rarr; Destination</th>';
+    for (var i = 0; i < 7; i++) h += '<th>' + DAYS[i].charAt(0) + DAYS[i].slice(1).toLowerCase() + '<small>' + (+dates[i].split("-")[2]) + '</small></th>';
+    return h + '<th>Total</th></tr>';
+  }
+  function tallyBackhaul(list, dates) {
+    var b = buildBackhaul(list, dates);
+    var h = '<p class="muted" style="margin-bottom:12px">Every move. A bobtail is counted as <strong>B</strong>, exactly like the paper form.</p>';
+    h += '<div class="gridwrap"><table class="tally"><thead>' + dayHead(dates) + '</thead><tbody>';
+    for (var g = 0; g < BACKHAUL.length; g++) {
+      if (g) h += '<tr class="gap"><th class="lane"></th><td colspan="8"></td></tr>';
+      for (var l = 0; l < BACKHAUL[g].length; l++) {
+        var lane = BACKHAUL[g][l], row = b.cells[laneKey(lane[0], lane[1])] || [], tot = 0;
+        h += '<tr><th class="lane">' + esc(lane[0]) + ' &rarr; ' + esc(lane[1]) + '</th>';
+        for (var d = 0; d < 7; d++) { var c = row[d]; if (!c) { h += '<td></td>'; continue; } tot += c.n; h += '<td class="has">' + cellText(c.n, c.b) + '</td>'; }
+        h += '<td class="tot">' + (tot || "") + '</td></tr>';
+      }
+    }
+    h += '</tbody></table></div><p class="legend">A plain number is loaded and empty moves. <strong>2B</strong> means two bobtails.</p>';
+    return h + unmatched(b.unmatched);
+  }
+  function tallyDest(form, list, dates, test, blurb) {
+    var b = buildDestForm(form, list, dates, test);
+    var h = '<p class="muted" style="margin-bottom:12px">' + blurb + '</p><div class="gridwrap"><table class="tally"><thead>' + dayHead(dates) + '</thead><tbody>';
+    for (var g = 0; g < form.length; g++) {
+      h += '<tr class="grp"><th class="lane" colspan="9">Destination: ' + esc(form[g].dest) + '</th></tr>';
+      for (var o = 0; o < form[g].origins.length; o++) {
+        var row = b.cells[laneKey(form[g].origins[o], form[g].dest)] || [], tot = 0;
+        h += '<tr><th class="lane">' + esc(form[g].origins[o]) + '</th>';
+        for (var d = 0; d < 7; d++) { var n = row[d] || 0; tot += n; h += '<td class="' + (n ? "has" : "") + '">' + (n || "") + '</td>'; }
+        h += '<td class="tot">' + (tot || "") + '</td></tr>';
+      }
+    }
+    return h + '</tbody></table></div>' + unmatched(b.unmatched);
+  }
+  function unmatched(un) {
+    var keys = []; for (var k in un) if (un.hasOwnProperty(k)) keys.push(k);
+    if (!keys.length) return '';
+    keys.sort();
+    var h = '<div class="card" style="margin-top:14px;border-left:4px solid var(--red)"><div class="card-b"><h3>' + keys.length + ' lane' + (keys.length === 1 ? '' : 's') + ' not on this form</h3>' +
+      '<p class="small">Logged moves with no printed row. Add the lane to the form or fix the spelling on the Setup tab.</p><ul style="margin:0;padding-left:20px">';
+    for (var i = 0; i < keys.length; i++) { var row = un[keys[i]], n = 0; for (var d = 0; d < 7; d++) { var c = row[d]; n += (c && typeof c === "object") ? c.n : (c || 0); } h += '<li>' + esc(keys[i]) + ' &mdash; ' + n + '</li>'; }
+    return h + '</ul></div></div>';
+  }
+
+  /* ---- export ---- */
+  function viewExport(list, f) {
+    var dates = weekDates(f), pick = EMAILDAY || DAYSEL || todayISO();
+    if (dates.indexOf(pick) < 0) pick = dates[Math.min(6, Math.max(0, fiscal(todayISO()).dow))];
+    var h = '<div class="card"><div class="card-h"><h2>Email a day to work</h2></div><div class="card-b">' +
+      '<p class="muted">Opens your mail app with the whole day written out: every driver, their times and overtime status, every move, and the three tallies for that day.</p>' +
+      '<div class="grid" style="margin-top:14px"><label style="flex:2 1 220px">Send to<input type="email" data-g="emailTo" value="' + esc(DB.emailTo) + '" placeholder="you@pepsico.com" autocomplete="email" inputmode="email"></label>' +
+      '<label>Day<select id="emailday">';
+    for (var d = 0; d < 7; d++) {
+      var cnt = list.filter(function (s) { return s.date === dates[d]; }).length;
+      h += '<option value="' + dates[d] + '"' + (dates[d] === pick ? ' selected' : '') + '>' + prettyDate(dates[d]) + (cnt ? ' (' + cnt + ')' : '') + '</option>';
+    }
+    h += '</select></label></div>' +
+      '<button class="btn primary big" data-act="emailday">Email this day</button>' +
+      '<div class="row" style="margin-top:8px"><button class="btn quiet sm" data-act="copyday">Copy the text instead</button></div></div></div>';
+    h += '<div class="card"><div class="card-h"><h2>For the planner</h2></div><div class="card-b">' +
+      '<p class="muted">One sheet with all three tally forms, laid out like the paper. Days across, every lane down the side, a total on each row.</p>' +
+      '<button class="btn primary big" data-act="csvtally" style="margin-top:6px">Download the tally sheet</button>' +
+      '<button class="btn quiet sm" data-act="copytally" style="margin-top:8px">Copy it to the clipboard instead</button>' +
+      '<p class="small" style="margin:10px 0 0">Saves as Transport Tally P' + f.period + ' W' + f.wop + '.csv and opens straight into Excel.</p></div></div>';
+    h += '<div class="card" id="savecopy"><div class="card-h"><h2>Save a copy of the app</h2></div><div class="card-b">' +
+      '<p class="muted">Downloads this whole app as one file with every run sheet inside it. Open that file next time and everything is there, on any phone, no account needed.</p>' +
+      '<div class="row" style="margin:10px 0 12px">' +
+      '<label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--t1);font-weight:500;margin:0"><input type="checkbox" id="cp_photos" style="width:20px;height:20px;min-height:0"> Include the photos (bigger file)</label>' +
+      '<label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--t1);font-weight:500;margin:0"><input type="checkbox" id="cp_keys" checked style="width:20px;height:20px;min-height:0"> Include my API key (keep the copy private)</label></div>' +
+      '<button class="btn primary big" data-act="savecopy">Save a copy</button>' +
+      '<p class="small" style="margin:10px 0 0">' + (DB.copyAt ? 'Last copy saved ' + DB.copyAt.slice(0, 16).replace("T", " ") + '.' : 'No copy saved yet.') + '</p></div></div>';
+    h += '<div class="card"><div class="card-h"><h3>Your own records</h3></div><div class="card-b"><div class="row">' +
+      '<button class="btn" data-act="csvhours">Hours and overtime</button><button class="btn" data-act="csvmoves">Every move</button></div></div></div>';
+    h += '<div class="card"><div class="card-h"><h3>Backup</h3></div><div class="card-b"><div class="row">' +
+      '<button class="btn" data-act="backup">Export backup</button>' +
+      '<label class="btn" style="margin:0">Restore backup<input type="file" accept="application/json,.json" data-act="restore" class="hide"></label>' +
+      '<button class="btn danger" data-act="wipe">Clear this week</button></div>' +
+      '<p class="small" style="margin:12px 0 0">' + (store.mode === "artifact" ? "Saved with this artifact in your Claude account." : store.mode === "local" ? "Saved in this browser on this device." : "Not saving between sessions here. Export a backup before you close.") +
+      ' ' + DB.sheets.length + ' run sheet(s) stored.</p></div></div>';
+    return h;
+  }
+  /* ---- email a day's data to the work address ---- */
+  function dayText(dateISO) {
+    var f = fiscal(dateISO), dates = weekDates(f);
+    var list = DB.sheets.filter(function (s) { return s.date === dateISO; })
+      .sort(function (a, b) { return (a.driver || "zzz") < (b.driver || "zzz") ? -1 : 1; });
+    var t = otTotals(list), L = [];
+    L.push("RUN SHEETS  |  " + prettyDate(dateISO) + " " + dateISO.slice(0, 4) + "  |  P" + f.period + " W" + f.wop + " (week " + f.week + ")");
+    L.push("Sheets " + list.length + "  |  Moves " + t.moves + "  |  Bobtails " + t.bobtails);
+    L.push("Overtime  |  approved " + fmtHrs(t.approved) + " h  |  denied " + fmtHrs(t.denied) + " h  |  pending " + fmtHrs(t.pending) + " h");
+    L.push("");
+    if (!list.length) L.push("No run sheets logged for this day.");
+    for (var i = 0; i < list.length; i++) {
+      var sh = list[i], a = assess(sh), st = sheetStatus(sh);
+      L.push((sh.driver || "UNIDENTIFIED") + "  |  " + (sh.start || "?") + "-" + (sh.end || "?") +
+        (a.sched ? "  (sched " + a.sched.s + "-" + a.sched.e + ")" : "") + "  |  " + st.label);
+      var line2 = [];
+      if (sh.tractor) line2.push("Tractor " + sh.tractor);
+      if (sh.mileIn || sh.mileOut) line2.push("Miles " + (sh.mileIn || "?") + "-" + (sh.mileOut || "?") + (mileTotal(sh) ? " (" + mileTotal(sh) + ")" : ""));
+      if (a.worked !== null) line2.push("Worked " + fmtHrs(a.worked) + " h");
+      if (line2.length) L.push("  " + line2.join("  |  "));
+      for (var m = 0; m < sh.moves.length; m++) {
+        var mv = sh.moves[m], bits = [];
+        if (!String(mv.from || "").trim() && !String(mv.to || "").trim()) continue;
+        bits.push((m + 1) + ". " + (mv.from || "?") + " > " + (mv.to || "?"));
+        if (isBobtail(mv)) bits.push("BOBTAIL"); else if (normType(mv.type)) bits.push(normType(mv.type));
+        if (mv.bol) bits.push("BOL " + mv.bol);
+        if (mv.trailer && !isBobtail(mv)) bits.push("Trl " + mv.trailer);
+        if (mv.leave || mv.arrive) bits.push((mv.leave || "?") + "-" + (mv.arrive || "?"));
+        L.push("  " + bits.join("  |  "));
+      }
+      if (sh.comments) L.push("  Comments: " + sh.comments);
+      L.push("");
+    }
+    var di = dates.indexOf(dateISO);
+    function block(title, cells, isBH) {
+      var keys = []; for (var k in cells) if (cells.hasOwnProperty(k) && cells[k][di]) keys.push(k);
+      L.push(title + (keys.length ? "" : "  |  nothing today"));
+      keys.sort();
+      for (var j = 0; j < keys.length; j++) {
+        var c = cells[keys[j]][di];
+        L.push("  " + keys[j].replace(" \u2192 ", " > ") + "  |  " + (isBH ? cellPlain(c.n, c.b) : c));
+      }
+      L.push("");
+    }
+    var bh = buildBackhaul(list, dates), em = buildDestForm(EMPTY_FORM, list, dates, isEmptyMove), du = buildDestForm(DUNNAGE_FORM, list, dates, isDunnageMove);
+    var bhAll = {}; for (var k1 in bh.cells) if (bh.cells.hasOwnProperty(k1)) bhAll[k1] = bh.cells[k1]; for (var k2 in bh.unmatched) if (bh.unmatched.hasOwnProperty(k2)) bhAll[k2 + " (not on form)"] = bh.unmatched[k2];
+    block("BACK HAUL TALLY", bhAll, true);
+    var emAll = {}; for (var k3 in em.cells) if (em.cells.hasOwnProperty(k3)) emAll[k3] = em.cells[k3]; for (var k4 in em.unmatched) if (em.unmatched.hasOwnProperty(k4)) emAll[k4 + " (not on form)"] = em.unmatched[k4];
+    block("EMPTY LOADS", emAll, false);
+    var duAll = {}; for (var k5 in du.cells) if (du.cells.hasOwnProperty(k5)) duAll[k5] = du.cells[k5]; for (var k6 in du.unmatched) if (du.unmatched.hasOwnProperty(k6)) duAll[k6 + " (not on form)"] = du.unmatched[k6];
+    block("DUNNAGE / FULL GOODS", duAll, false);
+    L.push("Sent from Run Sheets.");
+    return L.join("\n");
+  }
+  function emailDay(dateISO) {
+    var to = String(DB.emailTo || "").trim();
+    var n = DB.sheets.filter(function (s) { return s.date === dateISO; }).length;
+    var subject = "Run sheets " + prettyDate(dateISO) + "  -  " + n + " driver" + (n === 1 ? "" : "s");
+    var body = dayText(dateISO);
+    var url = "mailto:" + encodeURIComponent(to) + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    if (body.length > 7000) toast("Long email. If it opens empty, use Copy the text and paste it in.");
+    try { window.location.href = url; } catch (e) { copyText(body); }
+  }
+
+  function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { toast("Copied. Paste it into Excel or an email."); })["catch"](function () { toast("Copy blocked here. Use Download instead."); });
+      } else { toast("Copy is not available in this browser. Use Download."); }
+    } catch (e) { toast("Copy blocked here. Use Download instead."); }
+  }
+  function csvEsc(v) { v = String(v === null || v === undefined ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function download(name, text, mime) {
+    try {
+      var blob = new Blob([text], { type: mime || "text/csv;charset=utf-8;" }), url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
+    } catch (e) { toast("Download blocked here. Try from a browser."); }
+  }
+  function csvCombined(list, dates, f) {
+    var W = 10, out = [], tot = otTotals(list);
+    function pad(arr) { var r = (arr || []).slice(); while (r.length < W) r.push(""); return r.map(csvEsc).join(","); }
+    function push(arr) { out.push(pad(arr)); }
+    function blank() { push([]); }
+    function headers() { var h = ["Origin", "Destination"]; for (var i = 0; i < 7; i++) h.push(DAYS[i].charAt(0) + DAYS[i].slice(1).toLowerCase() + " " + (+dates[i].split("-")[2])); h.push("Total"); return h; }
+    function newT() { return { day: [0, 0, 0, 0, 0, 0, 0], bob: [0, 0, 0, 0, 0, 0, 0] }; }
+    function totalRow(label, days) { var s = 0, c = []; for (var i = 0; i < 7; i++) { s += days[i]; c.push(days[i]); } return [label, ""].concat(c, [s]); }
+    function extra(un, isBH, running) {
+      var keys = [], k; for (k in un) if (un.hasOwnProperty(k)) keys.push(k);
+      if (!keys.length) return [];
+      keys.sort();
+      var rows = [pad([]), pad(["NOT ON FORM"])];
+      for (var i = 0; i < keys.length; i++) {
+        var parts = keys[i].split(" \u2192 "), row = un[keys[i]], cells = [], rt = 0;
+        for (var d = 0; d < 7; d++) { var c = row[d], n = (c && typeof c === "object") ? c.n : (c || 0), b = (c && typeof c === "object") ? c.b : 0; cells.push(n ? (isBH ? cellPlain(n, b) : n) : ""); rt += n; running.day[d] += n; running.bob[d] += b; }
+        rows.push(pad([parts[0], parts[1]].concat(cells, [rt || ""])));
+      }
+      rows.push(pad([])); return rows;
+    }
+    function dest(no, title, blurb, form, built) {
+      var rows = [pad([no, title]), pad([blurb]), pad(headers())], t = newT();
+      for (var g = 0; g < form.length; g++) {
+        if (g) rows.push(pad([]));
+        rows.push(pad(["DESTINATION", form[g].dest]));
+        for (var o = 0; o < form[g].origins.length; o++) {
+          var row = built.cells[laneKey(form[g].origins[o], form[g].dest)] || [], cells = [], rt = 0;
+          for (var d = 0; d < 7; d++) { var n = row[d] || 0; cells.push(n || ""); rt += n; t.day[d] += n; }
+          rows.push(pad([form[g].origins[o], form[g].dest].concat(cells, [rt || ""])));
+        }
+      }
+      rows.push(pad([])); rows.push(pad(totalRow("TOTAL ON FORM", t.day)));
+      var ex = extra(built.unmatched, false, t); for (var e = 0; e < ex.length; e++) rows.push(ex[e]);
+      rows.push(pad(totalRow("GRAND TOTAL", t.day)));
+      return rows;
+    }
+    var bh = buildBackhaul(list, dates), em = buildDestForm(EMPTY_FORM, list, dates, isEmptyMove), du = buildDestForm(DUNNAGE_FORM, list, dates, isDunnageMove);
+    push(["TRANSPORT TALLY"]); push(["Period", f.period]); push(["Week", f.wop]); push(["Week of year", f.week]);
+    push(["Dates", shortDate(dates[0]) + " " + dates[0].slice(0, 4) + " to " + shortDate(dates[6]) + " " + dates[6].slice(0, 4)]);
+    blank(); push(["Run sheets", list.length]); push(["Moves", tot.moves]); push(["Bobtails", tot.bobtails]); blank(); blank();
+    push(["SHEET 3", "BACK HAUL TALLY"]); push(["Every move. 1B = one bobtail."]); push(headers());
+    var s3 = newT();
+    for (var g = 0; g < BACKHAUL.length; g++) {
+      if (g) blank();
+      for (var l = 0; l < BACKHAUL[g].length; l++) {
+        var lane = BACKHAUL[g][l], row = bh.cells[laneKey(lane[0], lane[1])] || [], cells = [], rt = 0;
+        for (var d = 0; d < 7; d++) { var c = row[d]; cells.push(c ? cellPlain(c.n, c.b) : ""); if (c) { rt += c.n; s3.day[d] += c.n; s3.bob[d] += c.b; } }
+        push([lane[0], lane[1]].concat(cells, [rt || ""]));
+      }
+    }
+    blank(); push(totalRow("TOTAL ON FORM", s3.day)); push(totalRow("of which bobtails", s3.bob));
+    var x3 = extra(bh.unmatched, true, s3); for (var i3 = 0; i3 < x3.length; i3++) out.push(x3[i3]);
+    push(totalRow("GRAND TOTAL", s3.day)); blank(); blank();
+    var s4 = dest("SHEET 4", "EMPTY LOADS TALLY", "Empty and M/T moves. No bobtails.", EMPTY_FORM, em); for (var i4 = 0; i4 < s4.length; i4++) out.push(s4[i4]);
+    blank(); blank();
+    var s5 = dest("SHEET 5", "DUNNAGE", "Dunnage and full goods coming back.", DUNNAGE_FORM, du); for (var i5 = 0; i5 < s5.length; i5++) out.push(s5[i5]);
+    return out.join("\r\n");
+  }
+  function csvMoves(list) {
+    var rows = [["Year", "Period", "Week", "WeekOfPeriod", "Day", "Date", "Driver", "GPID", "Loc", "Tractor", "Seq", "From", "To", "FromCanon", "ToCanon", "BOL", "Type", "Trailer", "Leave", "Arrive", "Class", "Bobtail"]];
+    var s = list.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    for (var i = 0; i < s.length; i++) { var sh = s[i], fi = fiscal(sh.date), dr = driverByName(sh.driver) || {};
+      for (var m = 0; m < sh.moves.length; m++) { var mv = sh.moves[m];
+        rows.push([sh.date.slice(0, 4), fi.period, fi.week, fi.wop, DAYS[fi.dow], sh.date, sh.driver, dr.g || "", dr.loc || "", sh.tractor, m + 1, mv.from, mv.to, canonLoc(mv.from), canonLoc(mv.to), mv.bol, normType(mv.type), mv.trailer, mv.leave, mv.arrive, moveClass(mv), isBobtail(mv) ? "B" : ""]); } }
+    return rows.map(function (r) { return r.map(csvEsc).join(","); }).join("\r\n");
+  }
+  function csvHours(list) {
+    var rows = [["Year", "Period", "Week", "Day", "Date", "Driver", "GPID", "Shift", "SchedStart", "SchedEnd", "ActualStart", "ActualEnd", "SchedHours", "WorkedHours", "EarlyStartMin", "LateFinishMin", "StartDecision", "EndDecision", "ApprovedOTHours", "DeniedOTHours", "PendingOTHours", "Bobtails", "Moves"]];
+    var s = list.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    for (var i = 0; i < s.length; i++) { var sh = s[i], fi = fiscal(sh.date), a = assess(sh), dr = a.sched || {}, t = { approved: 0, denied: 0, pending: 0 }, bob = 0;
+      if (a.startFlag && a.earlyMin > 0) bucket(t, sh.dStart, a.earlyMin); if (a.endFlag && a.lateMin > 0) bucket(t, sh.dEnd, a.lateMin);
+      for (var m = 0; m < sh.moves.length; m++) if (isBobtail(sh.moves[m])) bob++;
+      rows.push([sh.date.slice(0, 4), fi.period, fi.week, DAYS[fi.dow], sh.date, sh.driver, dr.g || "", dr.sh || "", dr.s || "", dr.e || "", sh.start, sh.end,
+        a.schedMin === null ? "" : fmtHrs(a.schedMin), a.worked === null ? "" : fmtHrs(a.worked), a.earlyMin || 0, a.lateMin || 0, sh.dStart, sh.dEnd, fmtHrs(t.approved), fmtHrs(t.denied), fmtHrs(t.pending), bob, sh.moves.length]); }
+    return rows.map(function (r) { return r.map(csvEsc).join(","); }).join("\r\n");
+  }
+
+  /* ---- setup ---- */
+  function viewSetup() {
+    var R = roster(), h = '';
+    h += '<div class="card"><div class="card-h"><h2>Driver schedule</h2><button class="btn sm" data-act="adddriver">Add a driver</button></div>';
+    if (ADD_DRIVER) {
+      h += '<div class="card-b" style="background:var(--s2);border-bottom:1px solid var(--line)"><div class="grid">' +
+        '<label style="flex:2 1 220px">Name<input type="text" id="nd_n" placeholder="FIRST LAST" autocapitalize="characters"></label>' +
+        '<label>GPID<input type="text" id="nd_g" inputmode="numeric"></label><label>Location<input type="text" id="nd_loc" value="TOR" autocapitalize="characters"></label></div><div class="grid">' +
+        '<label style="flex:2 1 220px">Shift pattern<input type="text" id="nd_sh" placeholder="M-TH (NOONS)"></label>' +
+        '<label>Start<input type="time" id="nd_s"></label><label>Finish<input type="time" id="nd_e"></label></div>' +
+        '<div class="row"><button class="btn primary" data-act="savedriver">Add to the roster</button><button class="btn" data-act="canceldriver">Cancel</button></div></div>';
+    }
+    h += '<div class="gridwrap" style="border:0;border-radius:0"><table class="tally" style="min-width:600px"><thead><tr><th class="lane">Driver</th><th>Loc</th><th>Shift</th><th>Start</th><th>Finish</th><th>Hrs</th><th></th></tr></thead><tbody>';
+    for (var i = 0; i < R.length; i++) { var d = R[i];
+      h += '<tr data-di="' + i + '"><th class="lane">' + esc(d.n) + '</th><td>' + esc(d.loc || "") + '</td><td style="text-align:left;white-space:nowrap;color:var(--t1)">' + esc(d.sh || "") + '</td>' +
+        '<td style="color:var(--t1)">' + esc(d.s) + '</td><td style="color:var(--t1)">' + esc(d.e) + '</td><td style="color:var(--t1)">' + fmtHrs(span(d.s, d.e) || 0) + '</td>' +
+        '<td style="padding:0"><button class="ibtn" style="width:44px;height:40px;border-left:0" data-act="deldriver" aria-label="Remove">' + ICON.trash + '</button></td></tr>'; }
+    h += '</tbody></table></div><div class="card-b" style="padding-top:12px"><button class="btn quiet sm" data-act="resetdrivers">Reset to the P10 W1 roster</button></div></div>';
+
+    h += '<div class="card"><div class="card-h"><h2>Place names</h2></div><div class="card-b">' +
+      '<p class="muted">Drivers spell places differently. Anything on the right is read as the name on the left. One line per place: <strong>Name = alias, alias</strong>.</p>' +
+      '<textarea data-g="aliasText" style="min-height:240px;font-size:14px">' + esc(aliasText()) + '</textarea>' +
+      '<div class="row" style="margin-top:12px"><button class="btn primary" data-act="savealias">Save place names</button><button class="btn quiet" data-act="resetalias">Reset</button></div>' +
+      '<p class="small" style="margin:10px 0 0">Pepsi Toronto is currently read as Mississauga. Change that line if they are two different yards.</p></div></div>';
+
+    h += '<div class="card"><div class="card-h"><h2>Photo reading</h2></div><div class="card-b">';
+    h += '<p class="muted">A photographed sheet is sent to a vision model that reads the handwriting and fills the card in. Google\u2019s Gemini has a free tier that needs no card, just a Google account.</p>';
+    h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 240px">Gemini API key, free<input type="password" data-g="geminiKey" value="' + esc(DB.geminiKey) + '" placeholder="AIza..." autocomplete="off" spellcheck="false"></label>' +
+      '<label>Gemini model<input type="text" data-g="geminiModel" value="' + esc(DB.geminiModel) + '" spellcheck="false"></label></div>';
+    h += '<div class="row"><button class="btn" data-act="testgemini">Test the key</button>' + (DB.geminiKey ? '<button class="btn sm danger" data-act="cleargemini">Remove</button>' : '') + '</div>';
+    h += '<p class="small" style="margin:12px 0 0">Get one at aistudio.google.com: sign in, open API keys, create a key, copy it here. The key stays on this device and goes only to Google. About a second a sheet.</p>';
+    h += '<details class="more"><summary>Use an Anthropic key instead</summary>' +
+      '<div class="grid"><label style="flex:2 1 240px">Anthropic API key<input type="password" data-g="apiKey" value="' + esc(DB.apiKey) + '" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></label></div>' +
+      '<div class="row"><button class="btn sm" data-act="testkey">Test the key</button>' + (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>' +
+      '<p class="small" style="margin:10px 0 0">Paid per sheet, about a cent. Used only when no Gemini key is set.</p></details>';
+    h += '</div></div>';
+    h += '<details class="more"><summary>Opening this on your work phone</summary><ol class="steps">' +
+      '<li>Save the file to the phone. Open <strong>Files</strong> (iPhone) or <strong>My Files</strong> (Android), long-press it, <strong>Open with &rarr; Chrome</strong>. A preview or text app shows the code instead of the page.</li>' +
+      '<li>From the browser menu, <strong>Add to Home screen</strong>. It launches like an app from then on.</li>' +
+      '<li>Paste your Gemini key above once. It stays on the phone.</li></ol></details>' +
+    '<details class="more"><summary>Keep your data between opens</summary><p class="muted">A file opened from the phone gets fresh storage every time, so the app forgets. Two ways round it.</p><ol class="steps">' +
+      '<li><strong>Save a copy</strong> on the Export tab whenever you finish. It downloads the app with all your run sheets inside. Open that newest copy next time.</li>' +
+      '<li><strong>Host it at a link, once.</strong> On a computer, go to <strong>netlify.com/drop</strong> and drag the ZIP Claude gave you onto the page. You get a web address in a few seconds, no account needed; make a free account to keep it permanently. Open that address on your phone, add it to the home screen, and storage stays put from then on.</li>' +
+      '</ol></details>';
+    return h;
+  }
+  function aliasText() { var l = []; for (var k in DB.aliases) if (DB.aliases.hasOwnProperty(k)) l.push(k + " = " + DB.aliases[k].join(", ")); return l.join("\n"); }
+  function parseAliasText(txt) {
+    var out = {}, lines = String(txt).split("\n");
+    for (var i = 0; i < lines.length; i++) { var ln = lines[i]; if (!ln.replace(/\s/g, "")) continue;
+      var eq = ln.indexOf("="), name = (eq < 0 ? ln : ln.slice(0, eq)).trim(), rest = eq < 0 ? "" : ln.slice(eq + 1); if (!name) continue;
+      out[name] = rest.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return !!s; }); }
+    return out;
+  }
+
+  /* ================================================================
+     Events
+     ================================================================ */
+  function closestAttr(node, attr) { while (node && node !== document) { if (node.getAttribute && node.getAttribute(attr) !== null) return node; node = node.parentNode; } return null; }
+  function val(id) { var n = el(id); return n ? String(n.value || "").trim() : ""; }
+  function wire() {
+    var app = el("app");
+    if (!wire.done) { app.addEventListener("click", onClick, false); app.addEventListener("change", onChange, false); app.addEventListener("input", onInput, false); wire.done = true; }
+    try {
+      if (!wire.dl) { wire.dl = el("loclist"); if (!wire.dl) { wire.dl = document.createElement("datalist"); wire.dl.id = "loclist"; document.body.appendChild(wire.dl); } }
+      var o = ""; for (var k in DB.aliases) if (DB.aliases.hasOwnProperty(k)) o += '<option value="' + esc(k) + '">';
+      wire.dl.innerHTML = o;
+    } catch (e) { }
+  }
+
+  function onClick(ev) {
+    var b = closestAttr(ev.target, "data-tab");
+    if (b) { TAB = b.getAttribute("data-tab"); render(); window.scrollTo(0, 0); return; }
+    var wkb = closestAttr(ev.target, "data-week");
+    if (wkb && !wkb.disabled) { var nw = +wkb.getAttribute("data-week"); if (nw >= 1 && nw <= 53) { WEEK = nw; DAYSEL = ""; render(); } return; }
+    var sg = closestAttr(ev.target, "data-tally");
+    if (sg) { TALLY = sg.getAttribute("data-tally"); render(); return; }
+    var dy = closestAttr(ev.target, "data-day");
+    if (dy) { var dv = dy.getAttribute("data-day"); DAYSEL = DAYSEL === dv ? "" : dv; render(); return; }
+
+    var a = closestAttr(ev.target, "data-act"); if (!a) return;
+    var act = a.getAttribute("data-act"), card = closestAttr(a, "data-sid"), sh = card ? findSheet(card.getAttribute("data-sid")) : null;
+
+    if (act === "allday") { DAYSEL = ""; render(); return; }
+    if (act === "openpaste") { PASTE_OPEN = true; render(); window.scrollTo(0, 0); return; }
+    if (act === "closepaste") { PASTE_OPEN = false; render(); return; }
+    if (act === "dopaste") {
+      var box = el("pastebox");
+      if (!box || !box.value.replace(/\s/g, "")) { toast("Paste the text in first."); return; }
+      var r2 = parsePaste(box.value);
+      if (!r2.sheets.length) { toast("Nothing readable there. Check the format."); return; }
+      for (var s4 = 0; s4 < r2.sheets.length; s4++) DB.sheets.unshift(r2.sheets[s4]);
+      PASTE_OPEN = false;
+      var wk = fiscal(r2.sheets[0].date).week; if (wk >= 1 && wk <= 53) WEEK = wk;
+      save(); render(); window.scrollTo(0, 0);
+      toast(r2.sheets.length + " sheet" + (r2.sheets.length === 1 ? "" : "s") + " added." + (r2.problems.length ? " " + r2.problems[0] : ""));
+      return;
+    }
+    if (act === "toggle" && sh) { if (OPEN[sh.id]) delete OPEN[sh.id]; else OPEN[sh.id] = 1; if (sh.auto) { sh.auto = false; save(); } render(); return; }
+    if (act === "delsheet" && sh) {
+      if (window.confirm("Delete " + (sh.driver || "this sheet") + "?")) { DB.sheets = DB.sheets.filter(function (x) { return x.id !== sh.id; }); delete OPEN[sh.id]; dropPhoto(sh.id); save(); render(); }
+      return;
+    }
+    if (act === "reread" && sh) { sh.readError = ""; sh.reading = true; if (readingId === sh.id) { reading = false; readingId = ""; } if (READQ.indexOf(sh.id) < 0) READQ.push(sh.id); render(); pump(); return; }
+    if (act === "cancelread" && sh) { READQ = READQ.filter(function (x) { return x !== sh.id; }); if (readingId === sh.id) { reading = false; readingId = ""; } sh.reading = false; save(); render(); pump(); return; }
+    if (act === "readall") {
+      var f3 = activeWeek(), ids4 = unreadSheets(sheetsInWeek(f3));
+      for (var u = 0; u < ids4.length; u++) { var us = findSheet(ids4[u]); if (us) { us.reading = true; us.readError = ""; READQ.push(us.id); } }
+      render(); pump(); return;
+    }
+    if (act === "clearerr" && sh) { sh.readError = ""; save(); render(); return; }
+    if (act === "rmphoto" && sh) { sh.hasPhoto = false; dropPhoto(sh.id); save(); render(); return; }
+    if (act === "addmove" && sh) { sh.moves.push(blankMove()); save(); render(); return; }
+    if (act === "delmove" && sh) { var tr = closestAttr(a, "data-mid"); if (tr) { var mid = tr.getAttribute("data-mid"); sh.moves = sh.moves.filter(function (x) { return x.id !== mid; }); save(); render(); } return; }
+    if (act === "decide" && sh) { var field = a.getAttribute("data-field"), k = a.getAttribute("data-k"); sh[field] = (sh[field] === k) ? "pending" : k; save(); render(); return; }
+
+    if (act === "adddriver") { ADD_DRIVER = true; render(); return; }
+    if (act === "canceldriver") { ADD_DRIVER = false; render(); return; }
+    if (act === "savedriver") {
+      var nm = val("nd_n").toUpperCase(); if (!nm) { toast("Give the driver a name."); return; }
+      if (driverByName(nm)) { toast(nm + " is already on the roster."); return; }
+      var s = val("nd_s"), e2 = val("nd_e"); if (!s || !e2) { toast("Set a start and a finish time."); return; }
+      DB.drivers.push({ n: nm, g: val("nd_g"), loc: val("nd_loc").toUpperCase() || "TOR", sh: val("nd_sh"), s: s, e: e2 });
+      DB.drivers.sort(function (x, y) { return x.n < y.n ? -1 : 1; });
+      ADD_DRIVER = false; save(); render(); toast(nm + " added."); return;
+    }
+    if (act === "deldriver") {
+      var row = closestAttr(a, "data-di"); if (!row) return;
+      var di = +row.getAttribute("data-di"), dr = DB.drivers[di]; if (!dr) return;
+      var used = 0; for (var s2 = 0; s2 < DB.sheets.length; s2++) if (DB.sheets[s2].driver === dr.n) used++;
+      if (window.confirm("Remove " + dr.n + " from the roster?" + (used ? "\n\n" + used + " run sheet(s) name this driver and will lose their schedule." : ""))) { DB.drivers.splice(di, 1); save(); render(); }
+      return;
+    }
+    if (act === "resetdrivers") { if (window.confirm("Put the roster back to the 26 drivers from the P10 W1 schedule?")) { DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS)); save(); render(); } return; }
+    if (act === "clearkey") { DB.apiKey = ""; save(); render(); return; }
+    if (act === "cleargemini") { DB.geminiKey = ""; save(); render(); return; }
+    if (act === "testgemini" || act === "testkey") {
+      var isG = act === "testgemini";
+      var kk = String(isG ? DB.geminiKey : DB.apiKey || "").trim();
+      if (!kk) { toast("Paste a key in first."); return; }
+      a.disabled = true; a.textContent = "Testing";
+      var tiny = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
+      var probe = isG ? callGemini(tiny) : callClaude(tiny, true);
+      probe.then(function (res) {
+        render();
+        toast(res.ok ? "Key works. Photographed sheets will fill themselves in." : apiError(res));
+      })["catch"](function () { render(); toast("Could not reach " + (isG ? "Google" : "Anthropic") + ". Check your signal."); });
+      return;
+    }
+    if (act === "savealias") { var ta = document.querySelector('[data-g="aliasText"]'); if (ta) { DB.aliases = parseAliasText(ta.value); save(); render(); toast("Place names saved."); } return; }
+    if (act === "resetalias") { DB.aliases = JSON.parse(JSON.stringify(DEFAULT_ALIASES)); save(); render(); return; }
+
+    var f2 = activeWeek(), list = sheetsInWeek(f2), dates = weekDates(f2), tag = "P" + f2.period + " W" + f2.wop;
+    if (act === "emailday" || act === "copyday") {
+      var sel = el("emailday"), dv2 = sel ? sel.value : (DAYSEL || todayISO());
+      EMAILDAY = dv2;
+      if (act === "emailday" && !String(DB.emailTo || "").trim()) { toast("Put your work address in Send to first."); return; }
+      if (act === "emailday") emailDay(dv2); else copyText(dayText(dv2));
+      return;
+    }
+    if (act === "emailsel") {
+      if (!String(DB.emailTo || "").trim()) { TAB = "export"; EMAILDAY = DAYSEL; render(); toast("Add your work address, then tap Email this day."); return; }
+      emailDay(DAYSEL); return;
+    }
+    if (act === "csvtally") { download("Transport Tally " + tag + ".csv", csvCombined(list, dates, f2)); return; }
+    if (act === "copytally") { copyText(csvCombined(list, dates, f2)); return; }
+    if (act === "csvmoves") { download("Moves " + tag + ".csv", csvMoves(list)); return; }
+    if (act === "csvhours") { download("Hours " + tag + ".csv", csvHours(list)); return; }
+    if (act === "gosave") { ev.preventDefault(); TAB = "export"; render(); var sc = el("savecopy"); if (sc && sc.scrollIntoView) sc.scrollIntoView(); return; }
+    if (act === "savecopy") {
+      var withPhotos = !!(el("cp_photos") && el("cp_photos").checked), withKeys = !!(el("cp_keys") && el("cp_keys").checked);
+      var db2 = JSON.parse(JSON.stringify(DB));
+      db2.copyAt = new Date().toISOString();
+      if (!withKeys) { db2.apiKey = ""; db2.geminiKey = ""; }
+      for (var q = 0; q < db2.sheets.length; q++) { delete db2.sheets[q].reading; delete db2.sheets[q].readError; }
+      var ids3 = []; if (withPhotos) for (var p2 = 0; p2 < DB.sheets.length; p2++) if (DB.sheets[p2].hasPhoto) ids3.push(DB.sheets[p2].id);
+      Promise.all(ids3.map(loadPhoto)).then(function (imgs) {
+        var photos = {}; for (var r = 0; r < ids3.length; r++) if (imgs[r]) photos[ids3[r]] = imgs[r];
+        if (!withPhotos) for (var s3 = 0; s3 < db2.sheets.length; s3++) db2.sheets[s3].hasPhoto = false;
+        var payload = JSON.stringify({ db: db2, photos: photos }).replace(/<\/script/gi, "<\\/script");
+        var doc = document.documentElement.cloneNode(true);
+        var appNode = doc.querySelector("#app"); if (appNode) appNode.innerHTML = '<div class="empty">Loading</div>';
+        var fat = doc.querySelector("#fatal"); if (fat) fat.innerHTML = "";
+        var tst = doc.querySelector("#toast"); if (tst) { tst.textContent = ""; tst.style.display = "none"; }
+        var dl = doc.querySelector("#loclist"); if (dl) dl.parentNode.removeChild(dl);
+        var old = doc.querySelector("#embedded-data"); if (old) old.parentNode.removeChild(old);
+        var s = document.createElement("script"); s.id = "embedded-data"; s.type = "application/json"; s.textContent = payload;
+        var body = doc.querySelector("body"); body.insertBefore(s, body.firstChild);
+        var html = "<!DOCTYPE html>\n" + doc.outerHTML;
+        DB.copyAt = db2.copyAt; save();
+        download("Run Sheets " + todayISO() + ".html", html, "text/html;charset=utf-8");
+        render();
+        toast("Saved. Next time, open that file from your Downloads.");
+      });
+      return;
+    }
+    if (act === "backup") {
+      var copy = JSON.parse(JSON.stringify(DB)); copy.photos = {};
+      var ids = []; for (var p = 0; p < DB.sheets.length; p++) if (DB.sheets[p].hasPhoto) ids.push(DB.sheets[p].id);
+      Promise.all(ids.map(loadPhoto)).then(function (imgs) { for (var q = 0; q < ids.length; q++) if (imgs[q]) copy.photos[ids[q]] = imgs[q]; download("RunSheets backup " + tag + ".json", JSON.stringify(copy), "application/json"); });
+      return;
+    }
+    if (act === "wipe") {
+      if (window.confirm("Remove every run sheet in " + tag + "? This cannot be undone.")) {
+        var ids2 = {}; for (var i = 0; i < list.length; i++) { ids2[list[i].id] = 1; dropPhoto(list[i].id); }
+        DB.sheets = DB.sheets.filter(function (x) { return !ids2[x.id]; }); save(); render();
+      }
+      return;
+    }
+  }
+
+  function onChange(ev) {
+    var t = ev.target, act = t.getAttribute("data-act");
+    if (act === "shoot") return shoot(ev);
+    if (act === "restore") return restore(ev);
+    commit(ev, true);
+  }
+  function onInput(ev) { commit(ev, false); }
+  function commit(ev, rerender) {
+    var t = ev.target, card = closestAttr(t, "data-sid"), g = t.getAttribute && t.getAttribute("data-g");
+    if (g && g !== "aliasText") { DB[g] = t.value; save(); if (g === "thresholdMin" || rerender) render(); return; }
+    if (!card) return;
+    var sh = findSheet(card.getAttribute("data-sid")); if (!sh) return;
+    var f = t.getAttribute("data-f");
+    if (f) { sh[f] = t.value; if (f === "start" || f === "end" || f === "driver") { sh.dStart = "pending"; sh.dEnd = "pending"; } save(); if (rerender || f === "date" || f === "driver" || f === "start" || f === "end") render(); return; }
+    var mf = t.getAttribute("data-m");
+    if (mf) { var tr = closestAttr(t, "data-mid"); if (!tr) return; var mid = tr.getAttribute("data-mid");
+      for (var i = 0; i < sh.moves.length; i++) if (sh.moves[i].id === mid) { sh.moves[i][mf] = t.value; break; }
+      save(); if (rerender) render(); }
+  }
+
+  // Camera or gallery. Each photo becomes its own sheet and goes into the read queue.
+  function shoot(ev) {
+    var input = ev.target; if (!input.files || !input.files.length) return;
+    var files = []; for (var i = 0; i < input.files.length; i++) files.push(input.files[i]);
+    input.value = "";
+    var f = activeWeek(), wd = weekDates(f), date = DAYSEL || todayISO();
+    if (date < wd[0] || date > wd[6]) date = wd[1];
+    var canRead = !!readerAvailable();
+    var made = [];
+    for (var n = 0; n < files.length; n++) { var fresh = blankSheet(date); fresh.reading = canRead; fresh.hasPhoto = true; DB.sheets.unshift(fresh); made.push(fresh); }
+    if (made.length === 1) { OPEN = {}; OPEN[made[0].id] = 1; }
+    TAB = "log"; render(); window.scrollTo(0, 0);
+    for (var k = 0; k < files.length; k++) (function (file, sheet) {
+      shrink(file, function (full, small) {
+        PHOTOS[sheet.id] = full;                 // read from the sharp one
+        savePhoto(sheet.id, small, true);        // keep the light one
+        if (canRead) { READQ.push(sheet.id); pump(); }
+        save(); render();
+      });
+    })(files[k], made[k]);
+    if (!canRead) toast("Photo attached. Add a free Gemini key on the Setup tab to have sheets read automatically.");
+  }
+  function reshrink(dataUrl, max, q, cb) {
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = img.width, h = img.height;
+          if (w > max || h > max) { var r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+          var c = document.createElement("canvas"); c.width = w; c.height = h;
+          var x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h);
+          cb(c.toDataURL("image/jpeg", q));
+        } catch (e) { cb(dataUrl); }
+      };
+      img.onerror = function () { cb(dataUrl); };
+      img.src = dataUrl;
+    } catch (e) { cb(dataUrl); }
+  }
+  function shrink(file, cb) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          function at(max, q) {
+            var w = img.width, h = img.height;
+            if (w > max || h > max) { var r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+            var c = document.createElement("canvas"); c.width = w; c.height = h;
+            var ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+            return c.toDataURL("image/jpeg", q);
+          }
+          cb(at(1280, 0.62), at(1000, 0.55));
+        } catch (e) { cb(reader.result, reader.result); }
+      };
+      img.onerror = function () { cb(reader.result, reader.result); };
+      img.src = reader.result;
+    };
+    reader.onerror = function () { toast("Could not read that photo."); };
+    reader.readAsDataURL(file);
+  }
+  function restore(ev) {
+    var input = ev.target; if (!input.files || !input.files[0]) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var next = JSON.parse(r.result); if (!next || !next.sheets) throw new Error("bad");
+        var photos = next.photos || {}; delete next.photos;
+        DB = next;
+        if (!DB.aliases) DB.aliases = JSON.parse(JSON.stringify(DEFAULT_ALIASES));
+        if (!DB.drivers || !DB.drivers.length) DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS));
+        for (var id in photos) if (photos.hasOwnProperty(id)) savePhoto(id, photos[id]);
+        save(); render(); toast("Backup restored.");
+      } catch (e) { toast("That file is not a run sheet backup."); }
+    };
+    r.readAsText(input.files[0]);
+  }
+
+  /* ================================================================
+     Boot
+     ================================================================ */
+  try {
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(pump, 400); }, false);
+    window.addEventListener("online", function () { setTimeout(pump, 400); }, false);
+  } catch (e) { }
+  load().then(function () { render(); })["catch"](function (e) {
+    el("fatal").innerHTML = '<div class="notice bad"><strong>Could not start.</strong> ' + esc(e && e.message ? e.message : e) + '</div>';
+  });
+})();
+</script>
+</body>
+</html>
