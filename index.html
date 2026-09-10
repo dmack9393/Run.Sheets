@@ -302,6 +302,25 @@ ol.steps strong{color:var(--t1)}
     { dest: "ARMOUR", origins: ["Fraserville"] }
   ];
 
+  var ASK_CLAUDE = "Read these Pepsi transport driver trip sheets and write them out in exactly this format, nothing else:\n\n" +
+    "DRIVER: <name as written>\n" +
+    "DATE: <YYYY-MM-DD>\n" +
+    "TRACTOR: <number>\n" +
+    "START: <HH:MM 24h>\n" +
+    "FINISH: <HH:MM 24h>\n" +
+    "MILEIN: <number>\n" +
+    "MILEOUT: <number>\n" +
+    "COMMENTS: <text or blank>\n" +
+    "MOVES\n" +
+    "from | to | BOL | type | trailer | leave | arrive\n" +
+    "...one line per written row, times in 24h...\n\n" +
+    "Separate each sheet with a line of three dashes.\n" +
+    "Type is L, E, D or BT. If the trailer column says B/T, put B/T in trailer and leave type blank.\n" +
+    "Use the driver's shift to work out AM or PM on bare times; a noons shift runs past midnight.\n" +
+    "Leave a field blank rather than guessing.";
+
+  var SB_SQL = "create table if not exists runsheets (\n  id text primary key,\n  date text, driver text,\n  doc jsonb not null,\n  deleted boolean not null default false,\n  up bigint not null default 0\n);\ncreate table if not exists runsheet_photos (\n  id text primary key, img text, up bigint not null default 0\n);\ncreate table if not exists runsheet_config (\n  key text primary key, doc jsonb not null, up bigint not null default 0\n);\nalter table runsheets enable row level security;\nalter table runsheet_photos enable row level security;\nalter table runsheet_config enable row level security;\ncreate policy anon_all on runsheets for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_photos for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_config for all to anon using (true) with check (true);";
+
   var ICON = {
     camera: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h3.4l1.7-2.6h7.8l1.7 2.6H21v11H3z"/><circle cx="12" cy="14" r="3.6"/></svg>',
     trash: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4.5h4M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7M10 10.5v6M14 10.5v6"/></svg>',
@@ -458,12 +477,12 @@ ol.steps strong{color:var(--t1)}
   var DB_KEY = "runsheets_db";
   var DB, PHOTOS = {}, OPEN = {}, TAB = "log", TALLY = "backhaul", DAYSEL = "", ADD_DRIVER = false;
   var READQ = [], reading = false, readingId = "", readingSince = 0, lastCallAt = 0, saveT = null, EMBEDDED_USED = false, WEEK = 0, EMAILDAY = "", PASTE_OPEN = false;
-  var READ_TIMEOUT = 45000, READ_GAP = 6500, DEAD_AFTER = 70000;
+  var READ_TIMEOUT = 60000, READ_GAP = 8000, DEAD_AFTER = 95000;
 
   function blankDB() {
     return { v: 2, straightHours: 39.06, rate: "", thresholdMin: 0,
       aliases: JSON.parse(JSON.stringify(DEFAULT_ALIASES)),
-      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-2.5-flash", emailTo: "", sheets: [] };
+      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-2.5-flash", emailTo: "", sbUrl: "", sbKey: "", configUp: 0, sheets: [] };
   }
   function seed() {
     var d = blankDB();
@@ -518,6 +537,9 @@ ol.steps strong{color:var(--t1)}
       if (DB.geminiKey === undefined) DB.geminiKey = "";
       if (!DB.geminiModel) DB.geminiModel = "gemini-2.5-flash";
       if (DB.emailTo === undefined) DB.emailTo = "";
+      if (DB.sbUrl === undefined) DB.sbUrl = "";
+      if (DB.sbKey === undefined) DB.sbKey = "";
+      if (!DB.configUp) DB.configUp = 0;
       if (DB.straightHours === undefined) DB.straightHours = 39.06;
       if (DB.thresholdMin === undefined) DB.thresholdMin = 0;
       for (var i = 0; i < DB.sheets.length; i++) { DB.sheets[i].reading = false; }
@@ -530,7 +552,8 @@ ol.steps strong{color:var(--t1)}
     if (saveT) clearTimeout(saveT);
     saveT = setTimeout(saveNow, 250);
   }
-  function saveNow() {
+  function saveNow() { saveLocal(); if (sbOn()) { if (syncT) clearTimeout(syncT); syncT = setTimeout(syncPush, 600); } }
+  function saveLocal() {
     saveT = null;
     DB.savedAt = new Date().toISOString();
     var copy = JSON.parse(JSON.stringify(DB));
@@ -544,10 +567,144 @@ ol.steps strong{color:var(--t1)}
     return store.set("runsheets_photo_" + id, dataUrl)["catch"](function () { toast("Photo too large to keep; the sheet data is saved."); });
   }
   function loadPhoto(id) {
-    if (PHOTOS[id] !== undefined) return Promise.resolve(PHOTOS[id]);
-    return store.get("runsheets_photo_" + id).then(function (v) { PHOTOS[id] = v || null; return PHOTOS[id]; });
+    if (PHOTOS[id] !== undefined && PHOTOS[id] !== null) return Promise.resolve(PHOTOS[id]);
+    return store.get("runsheets_photo_" + id).then(function (v) { return v || null; }, function () { return null; })
+      .then(function (v) {
+        if (v) { PHOTOS[id] = v; LASTPHOTO[id] = 1; return v; }
+        if (!sbOn()) { PHOTOS[id] = null; return null; }
+        return sbGet("runsheet_photos?select=img&id=eq." + encodeURIComponent(id)).then(function (rows) {
+          var img = (rows && rows[0]) ? rows[0].img : null;
+          PHOTOS[id] = img; if (img) { LASTPHOTO[id] = 1; store.set("runsheets_photo_" + id, img)["catch"](function () { }); }
+          return img;
+        }, function () { PHOTOS[id] = null; return null; });
+      });
   }
   function dropPhoto(id) { delete PHOTOS[id]; return store.del("runsheets_photo_" + id); }
+
+  /* ================================================================
+     Supabase sync. Every device with the link sees the same data.
+     Each sheet carries an `up` stamp; newest wins. Deletes leave a
+     tombstone so they travel too.
+     ================================================================ */
+  var LASTPUSH = {}, LASTPHOTO = {}, LASTCFG = "", SYNC = "off", syncT = null, pullT = null;
+  var CFG_KEYS = ["drivers", "aliases", "straightHours", "rate", "thresholdMin", "emailTo"];
+
+  function sbOn() { return !!(String(DB.sbUrl || "").trim() && String(DB.sbKey || "").trim()); }
+  function sbBase() { return String(DB.sbUrl || "").trim().replace(/\/+$/, "") + "/rest/v1/"; }
+  function sbHead(extra) {
+    var k = String(DB.sbKey || "").trim();
+    var h = { "apikey": k, "Authorization": "Bearer " + k, "Content-Type": "application/json" };
+    for (var x in extra) if (extra.hasOwnProperty(x)) h[x] = extra[x];
+    return h;
+  }
+  function sbGet(path) {
+    return httpJSON("GET", sbBase() + path, sbHead(), null).then(function (r) {
+      if (!r.ok) throw new Error(sbErr(r));
+      return JSON.parse(r.body || "[]");
+    });
+  }
+  function sbPut(table, rows) {
+    if (!rows.length) return Promise.resolve(true);
+    return httpJSON("POST", sbBase() + table, sbHead({ "Prefer": "resolution=merge-duplicates,return=minimal" }), JSON.stringify(rows))
+      .then(function (r) { if (!r.ok) throw new Error(sbErr(r)); return true; });
+  }
+  function sbErr(r) {
+    var m = ""; try { var j = JSON.parse(r.body); m = j.message || j.hint || j.error || ""; } catch (e) { }
+    if (r.status === 401 || r.status === 403) return "Supabase rejected the key. Check it on the Setup tab.";
+    if (r.status === 404) return "Those tables are missing. Run the setup SQL in Supabase.";
+    return m || ("Supabase returned " + r.status + ".");
+  }
+  function cfgDoc() { var o = {}; for (var i = 0; i < CFG_KEYS.length; i++) o[CFG_KEYS[i]] = DB[CFG_KEYS[i]]; return o; }
+  function setSync(s) { if (SYNC !== s) { SYNC = s; try { render(); } catch (e) { } } }
+
+  // Send anything that changed locally since the last push.
+  function syncPush() {
+    if (!sbOn()) return Promise.resolve();
+    var rows = [], now = Date.now(), i;
+    for (i = 0; i < DB.sheets.length; i++) {
+      var sh = DB.sheets[i], clean = JSON.parse(JSON.stringify(sh));
+      delete clean.reading; delete clean.readError; delete clean.netTry; delete clean.retried; delete clean.up;
+      var s = JSON.stringify(clean);
+      if (LASTPUSH[sh.id] !== s) {
+        sh.up = now;
+        rows.push({ id: sh.id, date: sh.date, driver: sh.driver || "", doc: clean, deleted: false, up: now });
+        LASTPUSH[sh.id] = s;
+      }
+    }
+    var live = {}; for (i = 0; i < DB.sheets.length; i++) live[DB.sheets[i].id] = 1;
+    for (var id in LASTPUSH) if (LASTPUSH.hasOwnProperty(id) && !live[id]) {
+      rows.push({ id: id, date: "", driver: "", doc: {}, deleted: true, up: now });
+      delete LASTPUSH[id];
+    }
+    var jobs = [];
+    if (rows.length) jobs.push(sbPut("runsheets", rows));
+    var cfg = JSON.stringify(cfgDoc());
+    if (LASTCFG && LASTCFG !== cfg) {
+      DB.configUp = now;
+      jobs.push(sbPut("runsheet_config", [{ key: "config", doc: cfgDoc(), up: now }]));
+    }
+    LASTCFG = cfg;
+    var pics = [];
+    for (var pid in PHOTOS) if (PHOTOS.hasOwnProperty(pid) && PHOTOS[pid] && !LASTPHOTO[pid]) {
+      pics.push({ id: pid, img: PHOTOS[pid], up: now });
+      LASTPHOTO[pid] = 1;
+    }
+    if (pics.length) for (var p = 0; p < pics.length; p++) jobs.push(sbPut("runsheet_photos", [pics[p]]));
+    if (!jobs.length) return Promise.resolve();
+    setSync("busy");
+    return Promise.all(jobs).then(function () { setSync("ok"); }, function (e) { setSync("err"); toast(e.message || "Sync failed."); });
+  }
+
+  // Take anything newer from the server.
+  function syncPull(quiet) {
+    if (!sbOn()) return Promise.resolve();
+    if (!quiet) setSync("busy");
+    return Promise.all([
+      sbGet("runsheets?select=id,doc,deleted,up"),
+      sbGet("runsheet_config?select=key,doc,up&key=eq.config")
+    ]).then(function (r) {
+      var rows = r[0] || [], cfg = (r[1] || [])[0], changed = false, i;
+      for (i = 0; i < rows.length; i++) {
+        var row = rows[i], local = findSheet(row.id), up = +row.up || 0;
+        if (row.deleted) {
+          if (local && (local.up || 0) <= up) {
+            DB.sheets = DB.sheets.filter(function (x) { return x.id !== row.id; });
+            delete LASTPUSH[row.id]; changed = true;
+          }
+          continue;
+        }
+        if (!row.doc || !row.doc.id) continue;
+        if (!local) {
+          var add = row.doc; add.up = up; add.reading = false; add.readError = "";
+          DB.sheets.unshift(add);
+          LASTPUSH[add.id] = JSON.stringify(row.doc);
+          changed = true;
+        } else if (up > (local.up || 0)) {
+          for (var k in row.doc) if (row.doc.hasOwnProperty(k)) local[k] = row.doc[k];
+          local.up = up; local.reading = false; local.readError = "";
+          LASTPUSH[local.id] = JSON.stringify(row.doc);
+          changed = true;
+        }
+      }
+      if (cfg && cfg.doc && (+cfg.up || 0) > (DB.configUp || 0)) {
+        for (var c = 0; c < CFG_KEYS.length; c++) if (cfg.doc[CFG_KEYS[c]] !== undefined) DB[CFG_KEYS[c]] = cfg.doc[CFG_KEYS[c]];
+        DB.configUp = +cfg.up || 0;
+        LASTCFG = JSON.stringify(cfgDoc());
+        ALIAS = aliasIndex();
+        changed = true;
+      }
+      if (!LASTCFG) LASTCFG = JSON.stringify(cfgDoc());
+      setSync("ok");
+      if (changed) { saveLocal(); try { render(); } catch (e) { } }
+    }, function (e) { setSync("err"); if (!quiet) toast(e.message || "Could not reach Supabase."); });
+  }
+
+  function syncNow() { return syncPush().then(function () { return syncPull(true); }); }
+  function startPolling() {
+    if (pullT) clearInterval(pullT);
+    if (!sbOn()) return;
+    pullT = setInterval(function () { if (!document.hidden) syncPull(true); }, 20000);
+  }
 
   var toastT = null;
   function toast(msg) {
@@ -676,12 +833,13 @@ ol.steps strong{color:var(--t1)}
   // Post JSON and always resolve to {ok,status,body}. fetch first; if the phone
   // drops it ("Load failed" on iPhone), do the same request over XMLHttpRequest,
   // which WebKit treats more kindly with large bodies. Both give up after 45 s.
-  function postJSON(url, headers, body) {
+  function postJSON(url, headers, body) { return httpJSON("POST", url, headers, body); }
+  function httpJSON(method, url, headers, body) {
     function viaXHR() {
       return new Promise(function (res, rej) {
         try {
           var x = new XMLHttpRequest();
-          x.open("POST", url, true);
+          x.open(method, url, true);
           x.timeout = READ_TIMEOUT;
           for (var k in headers) if (headers.hasOwnProperty(k)) x.setRequestHeader(k, headers[k]);
           x.onload = function () { res({ ok: x.status >= 200 && x.status < 300, status: x.status, body: x.responseText }); };
@@ -693,7 +851,8 @@ ol.steps strong{color:var(--t1)}
     }
     function viaFetch() {
       var ctrl = (typeof AbortController === "function") ? new AbortController() : null;
-      var opts = { method: "POST", headers: headers, body: body };
+      var opts = { method: method, headers: headers };
+      if (body !== null && body !== undefined) opts.body = body;
       if (ctrl) opts.signal = ctrl.signal;
       var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, READ_TIMEOUT);
       return fetch(url, opts).then(function (r) {
@@ -744,14 +903,29 @@ ol.steps strong{color:var(--t1)}
         contents: [{ parts: [
           { inline_data: { mime_type: "image/jpeg", data: b64 } },
           { text: extractPrompt() } ] }],
-        generationConfig: { temperature: 0, responseMimeType: "application/json" }
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
+          maxOutputTokens: 2048,
+          // 2.5 Flash thinks by default and can burn the whole budget before
+          // writing anything. Off makes it fast and reliable for transcription.
+          thinkingConfig: { thinkingBudget: 0 }
+        }
       })).then(function (res) { res.who = "gemini"; return res; })
       .then(function (res) {
         if (!res.ok) return res;
         var data = JSON.parse(res.body), text = "";
         var c = (data.candidates || [])[0];
         if (c && c.content && c.content.parts) for (var i = 0; i < c.content.parts.length; i++) if (c.content.parts[i].text) text += c.content.parts[i].text;
-        res.text = text; return res;
+        res.text = text;
+        res.finish = c ? c.finishReason : ((data.promptFeedback || {}).blockReason || "NO_CANDIDATE");
+        if (!text) {
+          res.ok = false; res.status = 599;
+          res.emptyWhy = res.finish === "MAX_TOKENS" ? "The reply was cut off. Retrying smaller."
+            : res.finish === "SAFETY" || res.finish === "PROHIBITED_CONTENT" ? "Google blocked that image. Retake it straighter."
+              : "Google sent an empty reply (" + (res.finish || "unknown") + ").";
+        }
+        return res;
       });
   }
 
@@ -775,11 +949,13 @@ ol.steps strong{color:var(--t1)}
     });
     else { finishRead(sh, "No reader set up. Add a free Gemini key on the Setup tab."); return; }
 
+    logRead(sh, "try", "attempt " + ((sh.netTry || 0) + 1) + ", " + Math.round(String(parts[1]).length / 1365) + " KB, " + which);
     p.then(function (res) {
       // Free tier says slow down: wait and go again once, automatically.
       if (res.status === 429 && !sh.retried) {
         sh.retried = true;
-        return new Promise(function (resolve) { setTimeout(resolve, 32000); }).then(function () {
+        logRead(sh, "wait", "rate limited, waiting 35 s");
+        return new Promise(function (resolve) { setTimeout(resolve, 35000); }).then(function () {
           return which === "gemini" ? callGemini(parts[1]) : callClaude(parts[1], which === "claude");
         });
       }
@@ -787,20 +963,25 @@ ol.steps strong{color:var(--t1)}
     }).then(function (res) {
       if (!res.ok) throw new Error(apiError(res));
       applyExtract(sh, res.text);
+      logRead(sh, "ok", sh.moves.length + " moves, " + (sh.driver || "no driver match"));
       sh.auto = true;
       var fw = fiscal(sh.date).week;
       if (fw !== WEEK) toast((sh.driver || "That sheet") + " is dated " + prettyDate(sh.date) + ", so it went to W" + fw + ". Tap W" + fw + " to see it.");
       finishRead(sh, "");
     })["catch"](function (e) {
       var msg = (e && e.message) ? e.message : "The request did not go through. Check your signal.";
-      if (/dropped|Load failed|Failed to fetch|NetworkError|network/i.test(msg) && (sh.netTry || 0) < 2) {
-        sh.netTry = (sh.netTry || 0) + 1;
-        // Second go sends a much smaller image; big bodies are what phones drop.
-        if (sh.netTry === 2 && PHOTOS[sh.id]) {
-          reshrink(PHOTOS[sh.id], 800, 0.5, function (small) { PHOTOS[sh.id] = small; setTimeout(function () { readSheet(sh); }, 2000); });
-          return;
-        }
-        setTimeout(function () { readSheet(sh); }, 3000);
+      logRead(sh, "fail", msg);
+      var n = (sh.netTry || 0) + 1;
+      // Three goes at it, each with a smaller image. Size is what usually kills these.
+      if (n <= 2 && !/blocked that image|rejected the key|not found/i.test(msg)) {
+        sh.netTry = n;
+        var side = n === 1 ? 1000 : 780, q = n === 1 ? 0.55 : 0.45;
+        if (PHOTOS[sh.id]) {
+          reshrink(PHOTOS[sh.id], side, q, function (small) {
+            PHOTOS[sh.id] = small;
+            setTimeout(function () { readSheet(sh); }, 2500);
+          });
+        } else setTimeout(function () { readSheet(sh); }, 2500);
         return;
       }
       sh.netTry = 0;
@@ -815,10 +996,11 @@ ol.steps strong{color:var(--t1)}
     setTimeout(pump, 30);
   }
   function apiError(res) {
+    if (res.emptyWhy) return res.emptyWhy;
     var msg = ""; try { var j = JSON.parse(res.body); if (j.error && j.error.message) msg = j.error.message; } catch (e) { }
     if (res.status === 401 || res.status === 403) {
       return hasKey ? "The API key was rejected. Check it on the Setup tab."
-        : "Automatic reading works when this is opened inside the Claude app. Open it there, or add an API key on the Setup tab.";
+        : "No reader is set up. Add a Gemini key on the Setup tab, or use Type or paste sheets in.";
     }
     if (res.status === 429) return "Busy right now. Wait a moment and tap Try again.";
     if (res.status >= 500) return "Anthropic returned an error. Try again shortly.";
@@ -848,6 +1030,13 @@ ol.steps strong{color:var(--t1)}
     if (!moves.length) moves.push(blankMove());
     sh.moves = moves; sh.dStart = "pending"; sh.dEnd = "pending";
   }
+  var READLOG = [];
+  function logRead(sh, kind, msg) {
+    var d = new Date();
+    READLOG.unshift({ t: pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()), k: kind, who: (sh && sh.driver) || "sheet", m: msg });
+    if (READLOG.length > 30) READLOG.length = 30;
+  }
+
   function pump() {
     if (reading) {
       // If the phone killed the request while we were in the background, the flag is a lie. Reset it.
@@ -945,7 +1134,11 @@ ol.steps strong{color:var(--t1)}
     lo = Math.max(1, Math.min(lo, todayW) - 3); hi = Math.min(53, Math.max(hi, todayW) + 4);
 
     var h = '<div class="top"><div class="top-in"><h1>Run sheets</h1>' +
-      '<div class="stamp">Period <b>' + f.period + '</b>&ensp;Week <b>' + f.wop + '</b>&ensp;<b>' + shortDate(dates[0]) + '&ndash;' + shortDate(dates[6]) + '</b></div></div>';
+      '<div class="stamp">Period <b>' + f.period + '</b>&ensp;Week <b>' + f.wop + '</b>&ensp;<b>' + shortDate(dates[0]) + '&ndash;' + shortDate(dates[6]) + '</b>' +
+      (sbOn() ? '&ensp;<span style="display:inline-flex;align-items:center;gap:5px;vertical-align:-1px"><span style="width:7px;height:7px;border-radius:50%;background:' +
+        (SYNC === "err" ? "var(--red)" : SYNC === "busy" ? "var(--acc)" : "var(--green)") + '"></span>' +
+        (SYNC === "err" ? "sync off" : SYNC === "busy" ? "syncing" : "synced") + '</span>' : '') +
+      '</div></div>';
     h += '<div class="wk-bar"><button class="wk-arrow" data-week="' + (WEEK - 1) + '" aria-label="Previous week"' + (WEEK <= 1 ? ' disabled' : '') + '>&#8249;</button><div class="wk-strip" id="wkstrip">';
     for (var w = lo; w <= hi; w++) {
       var fw = fiscalOfWeek(w), n = counts[w] || 0;
@@ -1006,6 +1199,8 @@ ol.steps strong{color:var(--t1)}
         '<span class="c">' + (counts[d] ? '<b>' + counts[d] + '</b>' : '&ndash;') + '</span></button>';
     }
     h += '</div>';
+    h += '<button class="btn big" data-act="openpaste" style="margin-bottom:6px">Type or paste sheets in</button>';
+    h += '<p class="hint" style="margin:0 0 14px">Use this when a photo will not read, or to type a sheet in by hand.</p>';
     if (PASTE_OPEN) h += pastePanel();
     var prog = readProgress(), unread = readerAvailable() ? unreadSheets(list) : [];
     if (prog.waiting) h += '<div class="notice" style="display:flex;align-items:center;gap:10px"><span class="spin"></span><span>Reading ' + prog.waiting + ' sheet' + (prog.waiting === 1 ? '' : 's') + '. Keep the app open; about six seconds each.</span></div>';
@@ -1027,11 +1222,19 @@ ol.steps strong{color:var(--t1)}
   }
 
   function pastePanel() {
-    return '<div class="card" style="border-color:var(--acc)"><div class="card-h"><h2>Paste sheets</h2></div><div class="card-b">' +
-      '<p class="muted">Send the photos to Claude in a chat, ask it to write them out in this app\u2019s format, then paste the reply here. No network needed on this end, so it never fails.</p>' +
-      '<textarea id="pastebox" placeholder="DRIVER: ...&#10;DATE: ...&#10;MOVES&#10;from | to | bol | type | trailer | leave | arrive" style="min-height:190px;font-size:13.5px;margin-top:12px"></textarea>' +
-      '<div class="row" style="margin-top:10px"><button class="btn primary" data-act="dopaste">Add these sheets</button>' +
-      '<button class="btn quiet" data-act="closepaste">Cancel</button></div></div></div>';
+    return '<div class="card" style="border-color:var(--acc)"><div class="card-h"><h2>Type or paste sheets in</h2>' +
+      '<button class="btn sm quiet" data-act="closepaste">Close</button></div><div class="card-b">' +
+      '<p class="muted"><b>1.</b> Photograph the sheets and send them off with the wording below. <b>2.</b> Paste what comes back into the box. Nothing here touches the network, so it cannot fail.</p>' +
+      '<div style="background:var(--s2);border:1px solid var(--line2);border-radius:8px;padding:12px;margin:14px 0 10px;' +
+      'font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;max-height:190px;overflow:auto;-webkit-user-select:all;user-select:all">' +
+      esc(ASK_CLAUDE) + '</div>' +
+      '<button class="btn sm" data-act="copyask" style="margin-bottom:16px">Copy that wording</button>' +
+      '<label>Paste the reply here</label>' +
+      '<textarea id="pastebox" placeholder="DRIVER: JOHN MRUCK&#10;DATE: 2026-09-09&#10;TRACTOR: 92723&#10;START: 14:45&#10;FINISH: 00:15&#10;MOVES&#10;MISS | MILTON | 4302075840 | L | G32776 | 15:45 | 16:15" style="min-height:200px;font-size:13.5px"></textarea>' +
+      '<div class="row" style="margin-top:12px"><button class="btn primary" data-act="dopaste">Add these sheets</button>' +
+      '<button class="btn quiet" data-act="clearpaste">Clear the box</button></div>' +
+      '<p class="small" style="margin:12px 0 0">You can also type straight into the box: one line per move, columns separated by | , and three dashes between drivers.</p>' +
+      '</div></div>';
   }
 
   function sheetRow(sh) {
@@ -1242,7 +1445,7 @@ ol.steps strong{color:var(--t1)}
       '<button class="btn" data-act="backup">Export backup</button>' +
       '<label class="btn" style="margin:0">Restore backup<input type="file" accept="application/json,.json" data-act="restore" class="hide"></label>' +
       '<button class="btn danger" data-act="wipe">Clear this week</button></div>' +
-      '<p class="small" style="margin:12px 0 0">' + (store.mode === "artifact" ? "Saved with this artifact in your Claude account." : store.mode === "local" ? "Saved in this browser on this device." : "Not saving between sessions here. Export a backup before you close.") +
+      '<p class="small" style="margin:12px 0 0">' + (sbOn() ? "Shared through Supabase, so every device with this link sees the same data." : store.mode === "local" ? "Saved in this browser on this device only." : "Not saving between sessions here. Export a backup before you close.") +
       ' ' + DB.sheets.length + ' run sheet(s) stored.</p></div></div>';
     return h;
   }
@@ -1427,6 +1630,20 @@ ol.steps strong{color:var(--t1)}
       '<div class="row" style="margin-top:12px"><button class="btn primary" data-act="savealias">Save place names</button><button class="btn quiet" data-act="resetalias">Reset</button></div>' +
       '<p class="small" style="margin:10px 0 0">Pepsi Toronto is currently read as Mississauga. Change that line if they are two different yards.</p></div></div>';
 
+    h += '<div class="card"><div class="card-h"><h2>Shared storage</h2>' + syncDot() + '</div><div class="card-b">';
+    h += '<p class="muted">With a Supabase project connected, every device that opens this link shares the same run sheets. Without one, each device keeps its own copy.</p>';
+    h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 260px">Project URL<input type="text" data-g="sbUrl" value="' + esc(DB.sbUrl) + '" placeholder="https://abcdefgh.supabase.co" spellcheck="false" autocapitalize="off"></label></div>';
+    h += '<div class="grid"><label style="flex:2 1 260px">Anon public key<input type="password" data-g="sbKey" value="' + esc(DB.sbKey) + '" placeholder="eyJhbGci..." autocomplete="off" spellcheck="false"></label></div>';
+    h += '<div class="row"><button class="btn primary" data-act="sbtest">Connect and sync</button>' +
+      (sbOn() ? '<button class="btn" data-act="sbsync">Sync now</button><button class="btn sm danger" data-act="sbclear">Disconnect</button>' : '') + '</div>';
+    h += '<details class="more"><summary>Setting up the project</summary><ol class="steps">' +
+      '<li>Sign up at supabase.com and create a project. The free tier is far more than this needs.</li>' +
+      '<li>Open <strong>SQL Editor</strong>, paste the block below, press Run.</li>' +
+      '<li><strong>Project Settings &rarr; API</strong>: copy the Project URL and the <strong>anon public</strong> key into the boxes above, then Connect and sync.</li>' +
+      '<li>Do the same on every device that should share the data.</li></ol>' +
+      '<textarea readonly style="min-height:210px;font-size:12px;line-height:1.5" onclick="this.select()">' + esc(SB_SQL) + '</textarea>' +
+      '<p class="small" style="margin-top:10px">The anon key sits inside this page, so treat the link as the password: anyone who has it can read and write these run sheets. Keep it off anything public.</p>' +
+      '</details></div></div>';
     h += '<div class="card"><div class="card-h"><h2>Photo reading</h2></div><div class="card-b">';
     h += '<p class="muted">A photographed sheet is sent to a vision model that reads the handwriting and fills the card in. Google\u2019s Gemini has a free tier that needs no card, just a Google account.</p>';
     h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 240px">Gemini API key, free<input type="password" data-g="geminiKey" value="' + esc(DB.geminiKey) + '" placeholder="AIza..." autocomplete="off" spellcheck="false"></label>' +
@@ -1438,15 +1655,33 @@ ol.steps strong{color:var(--t1)}
       '<div class="row"><button class="btn sm" data-act="testkey">Test the key</button>' + (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>' +
       '<p class="small" style="margin:10px 0 0">Paid per sheet, about a cent. Used only when no Gemini key is set.</p></details>';
     h += '</div></div>';
+    h += '<details class="more"><summary>Photo reading log (' + READLOG.length + ')</summary>';
+    if (!READLOG.length) h += '<p class="small">Nothing read yet this session.</p>';
+    else {
+      h += '<div style="font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:280px;overflow:auto">';
+      for (var q2 = 0; q2 < READLOG.length; q2++) {
+        var L = READLOG[q2];
+        var col = L.k === "ok" ? "var(--green)" : L.k === "fail" ? "var(--red)" : "var(--t2)";
+        h += '<div style="color:' + col + '">' + L.t + '  ' + esc(L.k.toUpperCase()) + '  ' + esc(L.who) + '  ' + esc(L.m) + '</div>';
+      }
+      h += '</div><button class="btn sm" data-act="copylog" style="margin-top:10px">Copy the log</button>';
+    }
+    h += '</details>';
     h += '<details class="more"><summary>Opening this on your work phone</summary><ol class="steps">' +
-      '<li>Save the file to the phone. Open <strong>Files</strong> (iPhone) or <strong>My Files</strong> (Android), long-press it, <strong>Open with &rarr; Chrome</strong>. A preview or text app shows the code instead of the page.</li>' +
-      '<li>From the browser menu, <strong>Add to Home screen</strong>. It launches like an app from then on.</li>' +
-      '<li>Paste your Gemini key above once. It stays on the phone.</li></ol></details>' +
+      '<li>Best: open the hosted link and use the browser menu to <strong>Add to Home screen</strong>. It then launches like an app.</li>' +
+      '<li>As a file instead: save it, open <strong>Files</strong> (iPhone) or <strong>My Files</strong> (Android), long-press, <strong>Open with &rarr; Chrome</strong>. A preview or text app shows the code instead of the page.</li>' +
+      '<li>Paste your Gemini key above once. It stays on the device.</li></ol></details>' +
     '<details class="more"><summary>Keep your data between opens</summary><p class="muted">A file opened from the phone gets fresh storage every time, so the app forgets. Two ways round it.</p><ol class="steps">' +
       '<li><strong>Save a copy</strong> on the Export tab whenever you finish. It downloads the app with all your run sheets inside. Open that newest copy next time.</li>' +
-      '<li><strong>Host it at a link, once.</strong> On a computer, go to <strong>netlify.com/drop</strong> and drag the ZIP Claude gave you onto the page. You get a web address in a few seconds, no account needed; make a free account to keep it permanently. Open that address on your phone, add it to the home screen, and storage stays put from then on.</li>' +
+      '<li><strong>Host it at a link, once.</strong> Put <strong>index.html</strong> in a GitHub repository and turn on Pages (Settings &rarr; Pages &rarr; main &rarr; root). Open that address on the phone and add it to the home screen; storage stays put from then on.</li>' +
+      '<li><strong>Connect Supabase</strong> in Shared storage above, and the data follows you between phone and computer instead of living on one device.</li>' +
       '</ol></details>';
     return h;
+  }
+  function syncDot() {
+    if (!sbOn()) return '<span class="small">Not connected</span>';
+    var m = { ok: ["Synced", "var(--green)"], busy: ["Syncing", "var(--acc)"], err: ["Sync problem", "var(--red)"], off: ["Idle", "var(--t3)"] }[SYNC] || ["Idle", "var(--t3)"];
+    return '<span class="small" style="display:inline-flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:' + m[1] + '"></span>' + m[0] + '</span>';
   }
   function aliasText() { var l = []; for (var k in DB.aliases) if (DB.aliases.hasOwnProperty(k)) l.push(k + " = " + DB.aliases[k].join(", ")); return l.join("\n"); }
   function parseAliasText(txt) {
@@ -1488,6 +1723,8 @@ ol.steps strong{color:var(--t1)}
     if (act === "allday") { DAYSEL = ""; render(); return; }
     if (act === "openpaste") { PASTE_OPEN = true; render(); window.scrollTo(0, 0); return; }
     if (act === "closepaste") { PASTE_OPEN = false; render(); return; }
+    if (act === "copyask") { copyText(ASK_CLAUDE); return; }
+    if (act === "clearpaste") { var pb = el("pastebox"); if (pb) { pb.value = ""; pb.focus(); } return; }
     if (act === "dopaste") {
       var box = el("pastebox");
       if (!box || !box.value.replace(/\s/g, "")) { toast("Paste the text in first."); return; }
@@ -1536,6 +1773,28 @@ ol.steps strong{color:var(--t1)}
       return;
     }
     if (act === "resetdrivers") { if (window.confirm("Put the roster back to the 26 drivers from the P10 W1 schedule?")) { DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS)); save(); render(); } return; }
+    if (act === "sbtest" || act === "sbsync") {
+      if (!sbOn()) { toast("Fill in both the project URL and the anon key."); return; }
+      a.disabled = true; a.textContent = "Working";
+      syncPush().then(function () { return syncPull(); }).then(function () {
+        startPolling(); render();
+        toast(SYNC === "err" ? "Could not sync. Check the URL, the key and the SQL." : "Connected. This device is in sync.");
+      });
+      return;
+    }
+    if (act === "sbclear") {
+      if (window.confirm("Disconnect from Supabase? This device keeps its own copy; nothing on the server is deleted.")) {
+        DB.sbUrl = ""; DB.sbKey = ""; if (pullT) clearInterval(pullT);
+        setSync("off"); save(); render();
+      }
+      return;
+    }
+    if (act === "copylog") {
+      var L2 = [];
+      for (var z = 0; z < READLOG.length; z++) L2.push(READLOG[z].t + "  " + READLOG[z].k.toUpperCase() + "  " + READLOG[z].who + "  " + READLOG[z].m);
+      copyText(L2.join("\n"));
+      return;
+    }
     if (act === "clearkey") { DB.apiKey = ""; save(); render(); return; }
     if (act === "cleargemini") { DB.geminiKey = ""; save(); render(); return; }
     if (act === "testgemini" || act === "testkey") {
@@ -1684,7 +1943,7 @@ ol.steps strong{color:var(--t1)}
             var ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
             return c.toDataURL("image/jpeg", q);
           }
-          cb(at(1280, 0.62), at(1000, 0.55));
+          cb(at(1150, 0.6), at(950, 0.5));
         } catch (e) { cb(reader.result, reader.result); }
       };
       img.onerror = function () { cb(reader.result, reader.result); };
@@ -1714,10 +1973,19 @@ ol.steps strong{color:var(--t1)}
      Boot
      ================================================================ */
   try {
-    document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(pump, 400); }, false);
-    window.addEventListener("online", function () { setTimeout(pump, 400); }, false);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) { setTimeout(pump, 400); if (sbOn()) syncPull(true); } }, false);
+    window.addEventListener("online", function () { setTimeout(pump, 400); if (sbOn()) syncNow(); }, false);
   } catch (e) { }
-  load().then(function () { render(); })["catch"](function (e) {
+  load().then(function () {
+    LASTCFG = JSON.stringify(cfgDoc());
+    for (var i = 0; i < DB.sheets.length; i++) {
+      var c = JSON.parse(JSON.stringify(DB.sheets[i]));
+      delete c.reading; delete c.readError; delete c.netTry; delete c.retried; delete c.up;
+      LASTPUSH[DB.sheets[i].id] = JSON.stringify(c);
+    }
+    render();
+    if (sbOn()) { syncPull().then(startPolling); }
+  })["catch"](function (e) {
     el("fatal").innerHTML = '<div class="notice bad"><strong>Could not start.</strong> ' + esc(e && e.message ? e.message : e) + '</div>';
   });
 })();
