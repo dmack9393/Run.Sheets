@@ -325,7 +325,7 @@ ol.steps strong{color:var(--t1)}
     "Use the driver's shift to work out AM or PM on bare times; a noons shift runs past midnight.\n" +
     "Leave a field blank rather than guessing.";
 
-  var APP_VER = "v17", APP_BUILT = "10 Sep 2026";
+  var APP_VER = "v19", APP_BUILT = "10 Sep 2026";
 
   var SB_SQL = "create table if not exists runsheets (\n  id text primary key,\n  date text, driver text,\n  doc jsonb not null,\n  deleted boolean not null default false,\n  up bigint not null default 0\n);\ncreate table if not exists runsheet_photos (\n  id text primary key, img text, up bigint not null default 0\n);\ncreate table if not exists runsheet_config (\n  key text primary key, doc jsonb not null, up bigint not null default 0\n);\nalter table runsheets enable row level security;\nalter table runsheet_photos enable row level security;\nalter table runsheet_config enable row level security;\ncreate policy anon_all on runsheets for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_photos for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_config for all to anon using (true) with check (true);";
 
@@ -490,7 +490,7 @@ ol.steps strong{color:var(--t1)}
   function blankDB() {
     return { v: 2, straightHours: 39.06, rate: "", thresholdMin: 0,
       aliases: JSON.parse(JSON.stringify(DEFAULT_ALIASES)),
-      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-3.5-flash-lite", emailTo: "", sbUrl: "", sbKey: "", configUp: 0, sheets: [] };
+      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", provider: "auto", geminiKey: "", geminiModel: "gemini-3.5-flash-lite", claudeModel: "claude-sonnet-5", emailTo: "", sbUrl: "", sbKey: "", configUp: 0, sheets: [] };
   }
   function seed() {
     var d = blankDB();
@@ -543,6 +543,8 @@ ol.steps strong{color:var(--t1)}
       if (!DB.drivers || !DB.drivers.length) DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS));
       if (DB.apiKey === undefined) DB.apiKey = "";
       if (DB.geminiKey === undefined) DB.geminiKey = "";
+      if (!DB.provider) DB.provider = "auto";
+      if (!DB.claudeModel) DB.claudeModel = "claude-sonnet-5";
       if (!DB.geminiModel || DB.geminiModel === "gemini-2.5-flash") DB.geminiModel = "gemini-3.5-flash-lite";
       if (DB.emailTo === undefined) DB.emailTo = "";
       if (DB.sbUrl === undefined) DB.sbUrl = "";
@@ -902,7 +904,7 @@ ol.steps strong{color:var(--t1)}
     });
   }
 
-  function callClaude(b64, useKey) {
+  function callClaude(b64, useKey, forceModel) {
     var headers = { "Content-Type": "application/json" };
     if (useKey) {
       headers["x-api-key"] = String(DB.apiKey || "").trim();
@@ -910,12 +912,12 @@ ol.steps strong{color:var(--t1)}
       headers["anthropic-dangerous-direct-browser-access"] = "true";
     }
     return postJSON("https://api.anthropic.com/v1/messages", headers, JSON.stringify({
-        model: useKey ? "claude-sonnet-5" : "claude-sonnet-4-6",
+        model: useKey ? (forceModel || DB.claudeModel || "claude-sonnet-5") : "claude-sonnet-4-6",
         max_tokens: 1000,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
           { type: "text", text: extractPrompt() } ] }]
-      })).then(function (res) { res.who = "claude"; return res; })
+      })).then(function (res) { res.who = "claude"; res.model = useKey ? (forceModel || DB.claudeModel || "claude-sonnet-5") : "claude-sonnet-4-6"; return res; })
       .then(function (res) {
         if (!res.ok) return res;
         var data = JSON.parse(res.body), text = "";
@@ -969,8 +971,13 @@ ol.steps strong{color:var(--t1)}
   }
 
   function readerAvailable() {
-    if (String(DB.geminiKey || "").trim()) return "gemini";
-    if (String(DB.apiKey || "").trim()) return "claude";
+    var g = !!String(DB.geminiKey || "").trim(), c = !!String(DB.apiKey || "").trim();
+    if (DB.provider === "claude") return c ? "claude" : (g ? "gemini" : "");
+    if (DB.provider === "gemini") return g ? "gemini" : (c ? "claude" : "");
+    // auto: Claude first when a key is there, since a paid key gets priority
+    // capacity and is what stops the free-tier overload waits.
+    if (c) return "claude";
+    if (g) return "gemini";
     if (store.mode === "artifact") return "claude-free";
     return "";
   }
@@ -1031,12 +1038,41 @@ ol.steps strong{color:var(--t1)}
       return res;
     }).then(function (res) {
       if (!res.ok) throw new Error(apiError(res));
-      applyExtract(sh, res.text);
-      logRead(sh, "ok", sh.moves.length + " moves, " + (sh.driver || "no driver match"));
-      sh.auto = true;
-      var fw = fiscal(sh.date).week;
-      if (fw !== WEEK) toast((sh.driver || "That sheet") + " is dated " + prettyDate(sh.date) + ", so it went to W" + fw + ". Tap W" + fw + " to see it.");
-      finishRead(sh, "");
+
+      function land(tag) {
+        logRead(sh, "ok", (tag ? tag + ": " : "") + sh.moves.length + " moves, " + (sh.driver || "no driver match"));
+        sh.auto = true;
+        var fw = fiscal(sh.date).week;
+        if (fw !== WEEK) toast((sh.driver || "That sheet") + " is dated " + prettyDate(sh.date) + ", so it went to W" + fw + ". Tap W" + fw + " to see it.");
+        finishRead(sh, "");
+      }
+
+      var snapshot = JSON.stringify({ d: sh.driver, m: sh.moves });
+      var bad = "";
+      try {
+        applyExtract(sh, res.text);
+        if (extractIsThin(sh)) bad = "nothing usable came back";
+      } catch (e) { bad = (e && e.message) ? e.message : "could not parse the reply"; }
+
+      // A failed read is a comprehension problem, so the right retry is a
+      // stronger model, not a smaller photo. One escalation, then give up.
+      var opus = "claude-opus-5";
+      if (bad && !sh.escalated && String(DB.apiKey || "").trim() && res.model !== opus) {
+        sh.escalated = 1;
+        var keep = JSON.parse(snapshot);
+        sh.driver = keep.d; sh.moves = keep.m;
+        logRead(sh, "wait", bad + " - escalating to " + opus);
+        return callClaude(parts[1], true, opus).then(function (r3) {
+          if (!r3.ok) throw new Error(apiError(r3));
+          applyExtract(sh, r3.text);
+          if (extractIsThin(sh)) throw new Error("Opus could not make it out either. Try a straighter, brighter photo, or type it in.");
+          land("opus");
+        });
+      }
+      if (bad) throw new Error(bad === "nothing usable came back"
+        ? "Nothing usable came back. Try a straighter, brighter photo, or type it in."
+        : bad);
+      land("");
     })["catch"](function (e) {
       var msg = (e && e.message) ? e.message : "The request did not go through. Check your signal.";
       logRead(sh, "fail", msg);
@@ -1058,7 +1094,7 @@ ol.steps strong{color:var(--t1)}
     });
   }
   function finishRead(sh, err) {
-    sh.reading = false; sh.readError = err; sh.retried = false; sh.netTry = 0; sh.busyTry = 0;
+    sh.reading = false; sh.readError = err; sh.retried = false; sh.netTry = 0; sh.busyTry = 0; sh.escalated = 0;
     reading = false; readingId = ""; lastCallAt = Date.now();
     save();
     try { render(); } catch (e) { }
@@ -1091,6 +1127,15 @@ ol.steps strong{color:var(--t1)}
     }
     if (!s) return "The request never reached " + who + ". Check the network.";
     return msg || (who + " request failed (" + s + ").");
+  }
+
+  // A reply can parse fine and still be useless - no driver, no lanes.
+  function extractIsThin(sh) {
+    if (!sh.driver) {
+      for (var i = 0; i < sh.moves.length; i++) if (String(sh.moves[i].from || "").trim() || String(sh.moves[i].to || "").trim()) return false;
+      return true;
+    }
+    return false;
   }
 
   function applyExtract(sh, text) {
@@ -1135,7 +1180,10 @@ ol.steps strong{color:var(--t1)}
     }
     if (!READQ.length) { try { render(); } catch (e) { } return; }
     // Space the calls out so a stack of sheets stays inside the free-tier limit.
-    var wait = Math.max(0, READ_GAP - (Date.now() - lastCallAt));
+    // The 8 s spacing exists for Gemini's free-tier rate limit. A paid Anthropic
+    // key does not need it, so a stack of sheets goes roughly four times faster.
+    var gap = readerAvailable() === "claude" ? 2000 : READ_GAP;
+    var wait = Math.max(0, gap - (Date.now() - lastCallAt));
     if (wait > 0 && !pump.t) { pump.t = setTimeout(function () { pump.t = null; pump(); }, wait); return; }
     if (wait > 0) return;
     var next = READQ.shift();
@@ -1823,17 +1871,35 @@ ol.steps strong{color:var(--t1)}
       '<textarea readonly style="min-height:210px;font-size:12px;line-height:1.5" onclick="this.select()">' + esc(SB_SQL) + '</textarea>' +
       '<p class="small" style="margin-top:10px">The anon key sits inside this page, so treat the link as the password: anyone who has it can read and write these run sheets. Keep it off anything public.</p>' +
       '</details></div></div>';
-    h += '<div class="card"><div class="card-h"><h2>Photo reading</h2></div><div class="card-b">';
-    h += '<p class="muted">A photographed sheet is sent to a vision model that reads the handwriting and fills the card in. Google\u2019s Gemini has a free tier that needs no card, just a Google account.</p>';
-    h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 240px">Gemini API key, free<input type="password" data-g="geminiKey" value="' + esc(DB.geminiKey) + '" placeholder="AIza..." autocomplete="off" spellcheck="false"></label>' +
-      '<label>Gemini model<select data-g="geminiModel">' + modelOptions() + '</select></label></div>';
-    h += '<div class="row"><button class="btn" data-act="testgemini">Test the key</button>' + (DB.geminiKey ? '<button class="btn sm danger" data-act="cleargemini">Remove</button>' : '') + '</div>';
-    h += '<p class="small" style="margin:12px 0 0">gemini-3.5-flash-lite is the default: lightest, fastest and the highest free daily allowance. If a model refuses, the app tries the others on its own. Get a key at aistudio.google.com: sign in, open API keys, create a key, copy it here. The key stays on this device and goes only to Google. About a second a sheet.</p>';
-    h += '<details class="more"><summary>Use an Anthropic key instead</summary>' +
-      '<div class="grid"><label style="flex:2 1 240px">Anthropic API key<input type="password" data-g="apiKey" value="' + esc(DB.apiKey) + '" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></label></div>' +
-      '<div class="row"><button class="btn sm" data-act="testkey">Test the key</button>' + (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>' +
-      '<p class="small" style="margin:10px 0 0">Paid per sheet, about a cent. Used only when no Gemini key is set.</p></details>';
+    var who = readerAvailable();
+    h += '<div class="card"><div class="card-h"><h2>Photo reading</h2>' +
+      '<span class="small">' + (who === "claude" ? "Using Claude" : who === "gemini" ? "Using Gemini" : who === "claude-free" ? "Using built-in" : "Not set up") + '</span></div><div class="card-b">';
+    h += '<p class="muted">A photographed sheet goes to a vision model that reads the handwriting and fills the card in.</p>';
+    h += '<div class="grid" style="margin-top:14px"><label style="flex:1 1 200px">Reader<select data-g="provider">' +
+      '<option value="auto"' + (DB.provider === "auto" ? " selected" : "") + '>Automatic</option>' +
+      '<option value="claude"' + (DB.provider === "claude" ? " selected" : "") + '>Claude (paid, fastest)</option>' +
+      '<option value="gemini"' + (DB.provider === "gemini" ? " selected" : "") + '>Gemini (free tier)</option>' +
+      '</select></label></div>';
+
+    h += '<h3 style="margin:6px 0 10px">Claude</h3>';
+    h += '<div class="grid"><label style="flex:2 1 240px">Anthropic API key<input type="password" data-g="apiKey" value="' + esc(DB.apiKey) + '" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></label>' +
+      '<label style="flex:1 1 190px">Model<select data-g="claudeModel">' +
+      '<option value="claude-sonnet-5"' + (DB.claudeModel === "claude-sonnet-5" ? " selected" : "") + '>claude-sonnet-5 (best reading)</option>' +
+      '<option value="claude-haiku-4-5-20251001"' + (DB.claudeModel === "claude-haiku-4-5-20251001" ? " selected" : "") + '>claude-haiku-4-5 (cheaper)</option>' +
+      '<option value="claude-opus-5"' + (DB.claudeModel === "claude-opus-5" ? " selected" : "") + '>claude-opus-5 (dearest)</option>' +
+      '</select></label></div>';
+    h += '<div class="row"><button class="btn primary" data-act="testkey">Test the Claude key</button>' +
+      (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>';
+    h += '<p class="small" style="margin:10px 0 0">console.anthropic.com, then Settings &rarr; API keys. Prepaid, about a cent a sheet. Paid requests get priority, so no waiting on free-tier overload, and sheets read roughly four times faster.</p>';
+
+    h += '<h3 style="margin:20px 0 10px">Gemini</h3>';
+    h += '<div class="grid"><label style="flex:2 1 240px">Gemini API key<input type="password" data-g="geminiKey" value="' + esc(DB.geminiKey) + '" placeholder="AIza..." autocomplete="off" spellcheck="false"></label>' +
+      '<label style="flex:1 1 190px">Model<select data-g="geminiModel">' + modelOptions() + '</select></label></div>';
+    h += '<div class="row"><button class="btn" data-act="testgemini">Test the Gemini key</button>' +
+      (DB.geminiKey ? '<button class="btn sm danger" data-act="cleargemini">Remove</button>' : '') + '</div>';
+    h += '<p class="small" style="margin:10px 0 0">aistudio.google.com. Free, but the free tier shares capacity, so busy periods return overload errors and the app has to wait them out.</p>';
     h += '</div></div>';
+
     h += '<div class="card"><div class="card-b" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
       '<div><h3 style="margin:0">Version ' + APP_VER + '</h3><div class="small">Built ' + APP_BUILT + '</div></div>' +
       '<button class="btn sm" data-act="hardreload">Force a fresh copy</button></div></div>';
