@@ -325,7 +325,7 @@ ol.steps strong{color:var(--t1)}
     "Use the driver's shift to work out AM or PM on bare times; a noons shift runs past midnight.\n" +
     "Leave a field blank rather than guessing.";
 
-  var APP_VER = "v15", APP_BUILT = "10 Sep 2026";
+  var APP_VER = "v17", APP_BUILT = "10 Sep 2026";
 
   var SB_SQL = "create table if not exists runsheets (\n  id text primary key,\n  date text, driver text,\n  doc jsonb not null,\n  deleted boolean not null default false,\n  up bigint not null default 0\n);\ncreate table if not exists runsheet_photos (\n  id text primary key, img text, up bigint not null default 0\n);\ncreate table if not exists runsheet_config (\n  key text primary key, doc jsonb not null, up bigint not null default 0\n);\nalter table runsheets enable row level security;\nalter table runsheet_photos enable row level security;\nalter table runsheet_config enable row level security;\ncreate policy anon_all on runsheets for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_photos for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_config for all to anon using (true) with check (true);";
 
@@ -994,14 +994,14 @@ ol.steps strong{color:var(--t1)}
         }
         return res;
       }).then(function (res) {
-        if (res.ok || (res.status !== 429 && res.status !== 404)) return res;
+        if (res.ok || (res.status !== 429 && res.status !== 404 && res.status !== 503)) return res;
         var tried = String(DB.geminiModel || "").trim(), chain = [];
         for (var i = 0; i < MODEL_FALLBACK.length; i++) if (MODEL_FALLBACK[i] !== tried) chain.push(MODEL_FALLBACK[i]);
         function nextOne(n) {
           if (n >= chain.length) return res;
-          logRead(sh, "wait", tried + " refused, trying " + chain[n]);
+          logRead(sh, "wait", tried + " unavailable, trying " + chain[n]);
           return callGemini(parts[1], chain[n]).then(function (r2) {
-            if (r2.ok) { DB.geminiModel = chain[n]; save(); toast("Switched to " + chain[n] + "; that one has free quota."); return r2; }
+            if (r2.ok) { DB.geminiModel = chain[n]; save(); toast("Switched to " + chain[n] + "; the other one was unavailable."); return r2; }
             return nextOne(n + 1);
           });
         }
@@ -1018,10 +1018,13 @@ ol.steps strong{color:var(--t1)}
     logRead(sh, "try", "attempt " + ((sh.netTry || 0) + 1) + ", " + Math.round(String(parts[1]).length / 1365) + " KB, " + which);
     p.then(function (res) {
       // Free tier says slow down: wait and go again once, automatically.
-      if (res.status === 429 && !sh.retried) {
-        sh.retried = true;
-        logRead(sh, "wait", "rate limited, waiting 35 s");
-        return new Promise(function (resolve) { setTimeout(resolve, 35000); }).then(function () {
+      // 429 is our own pace; 503 is the model being swamped. Both are worth
+      // waiting out rather than failing the sheet.
+      if ((res.status === 429 || res.status === 503) && (sh.busyTry || 0) < 3) {
+        sh.busyTry = (sh.busyTry || 0) + 1;
+        var waits = [8000, 20000, 45000], w = waits[sh.busyTry - 1];
+        logRead(sh, "wait", (res.status === 503 ? "model overloaded" : "rate limited") + ", waiting " + (w / 1000) + " s (try " + sh.busyTry + " of 3)");
+        return new Promise(function (resolve) { setTimeout(resolve, w); }).then(function () {
           return which === "gemini" ? callGemini(parts[1]) : callClaude(parts[1], which === "claude");
         });
       }
@@ -1055,7 +1058,7 @@ ol.steps strong{color:var(--t1)}
     });
   }
   function finishRead(sh, err) {
-    sh.reading = false; sh.readError = err; sh.retried = false; sh.netTry = 0;
+    sh.reading = false; sh.readError = err; sh.retried = false; sh.netTry = 0; sh.busyTry = 0;
     reading = false; readingId = ""; lastCallAt = Date.now();
     save();
     try { render(); } catch (e) { }
@@ -1063,18 +1066,33 @@ ol.steps strong{color:var(--t1)}
   }
   function apiError(res) {
     if (res.emptyWhy) return res.emptyWhy;
-    var msg = ""; try { var j = JSON.parse(res.body); if (j.error && j.error.message) msg = j.error.message; } catch (e) { }
-    if (res.status === 401 || res.status === 403) {
-      return hasKey ? "The API key was rejected. Check it on the Setup tab."
-        : "No reader is set up. Add a Gemini key on the Setup tab, or use Type or paste sheets in.";
+    var who = res.who === "claude" ? "Anthropic" : "Google";
+    var msg = "";
+    try { var j = JSON.parse(res.body); if (j.error) msg = j.error.message || j.error.status || ""; } catch (e) { }
+    var s = res.status;
+
+    if (s === 401 || s === 403) {
+      if (/api key|api_key|invalid|unregistered|permission/i.test(msg)) return who + " rejected the key. Check it on the Setup tab. (" + s + ")";
+      return who + " refused the request (" + s + "). Often a network blocking it rather than the key." + (msg ? " " + msg : "");
     }
-    if (res.status === 429) {
-      if (/free|quota|billing|tier/i.test(msg)) return "No free quota for " + (res.model || "that model") + ". Google said: " + msg;
-      return "Rate limited. Wait a minute and tap Try again." + (msg ? " Google said: " + msg : "");
+    if (s === 400) return who + " rejected the request (400)." + (msg ? " " + msg : "");
+    if (s === 404) return "No model called " + (res.model || "that") + ". Pick another on the Setup tab.";
+    if (s === 429) {
+      if (/free|quota|billing|tier/i.test(msg)) return "No free quota left for " + (res.model || "that model") + ". " + who + " said: " + msg;
+      return "Rate limited by " + who + ". Wait a minute and try again." + (msg ? " " + msg : "");
     }
-    if (res.status >= 500) return "Anthropic returned an error. Try again shortly.";
-    return msg || ("Request failed (" + res.status + ").");
+    if (s === 503) {
+      if (/demand|overload|unavailable|capacity|try again/i.test(msg)) return (res.model || "That model") + " is overloaded right now. " + who + " said: " + msg;
+      return who + " is unavailable (503)." + (msg ? " " + msg : " On a work network this can also be a proxy in the way.");
+    }
+    if (s >= 500) {
+      if (msg) return who + " returned a " + s + ". " + msg;
+      return who + " returned a " + s + ". On a work network this can be a proxy in the way rather than " + who + " itself.";
+    }
+    if (!s) return "The request never reached " + who + ". Check the network.";
+    return msg || (who + " request failed (" + s + ").");
   }
+
   function applyExtract(sh, text) {
     var t = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
     var i = t.indexOf("{"), j = t.lastIndexOf("}");
@@ -1102,7 +1120,7 @@ ol.steps strong{color:var(--t1)}
   var READLOG = [];
   function logRead(sh, kind, msg) {
     var d = new Date();
-    READLOG.unshift({ t: pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()), k: kind, who: (sh && sh.driver) || "sheet", m: msg });
+    READLOG.unshift({ t: pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()), k: kind, who: (sh && sh.driver) || (sh ? "sheet" : "-"), m: msg });
     if (READLOG.length > 30) READLOG.length = 30;
   }
 
@@ -2011,8 +2029,15 @@ ol.steps strong{color:var(--t1)}
       var probe = isG ? callGemini(tiny) : callClaude(tiny, true);
       probe.then(function (res) {
         render();
-        toast(res.ok ? "Key works. Photographed sheets will fill themselves in." : apiError(res));
-      })["catch"](function () { render(); toast("Could not reach " + (isG ? "Google" : "Anthropic") + ". Check your signal."); });
+        if (res.ok) { toast((isG ? "Gemini" : "Anthropic") + " key works. Photographed sheets will fill themselves in."); return; }
+        logRead(null, "fail", "key test: " + apiError(res));
+        toast(apiError(res));
+      })["catch"](function (e) {
+        render();
+        var m = (e && e.message) ? e.message : "";
+        logRead(null, "fail", "key test: " + (m || "no response"));
+        toast("Could not reach " + (isG ? "Google" : "Anthropic") + "." + (m ? " " + m : " Check the network."));
+      });
       return;
     }
     if (act === "savealias") { var ta = document.querySelector('[data-g="aliasText"]'); if (ta) { DB.aliases = parseAliasText(ta.value); save(); render(); toast("Place names saved."); } return; }
