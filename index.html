@@ -46,9 +46,12 @@ svg{display:block;flex:0 0 auto}
 .wk-bar{display:flex;align-items:stretch;border-top:1px solid var(--line);max-width:960px;margin:0 auto}
 .wk-arrow{flex:0 0 40px;border:0;background:none;color:var(--t2);font-size:26px;line-height:1;padding:0}
 .wk-arrow[disabled]{opacity:.25}
-.wk-strip{flex:1;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 4px;scroll-behavior:smooth}
+.wk-strip{flex:1;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 4px;cursor:grab;outline:0;user-select:none;-webkit-user-select:none;min-height:62px}
+.wk-strip::-webkit-scrollbar{height:0}
+.wk-strip:focus-visible{box-shadow:inset 0 0 0 2px var(--acc);border-radius:10px}
+.wk-strip:focus-visible .wk.on{box-shadow:0 0 0 2px var(--acc),0 0 22px -4px var(--acc-glow)}
 .wk-strip::-webkit-scrollbar{display:none}
-.wk{flex:1 0 92px;min-width:92px;border:1px solid var(--line);background:var(--s1);border-radius:9px;padding:7px 10px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;color:var(--t3);text-align:left}
+.wk{flex:0 0 92px;min-width:92px;user-select:none;-webkit-user-select:none;border:1px solid var(--line);background:var(--s1);border-radius:9px;padding:7px 10px 6px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;color:var(--t3);text-align:left}
 .wk .wn{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.01em}
 .wk .wp{font-size:10.5px;font-weight:600;letter-spacing:.05em;color:var(--t3)}
 .wk .wc{font-size:11px;color:var(--t3);margin-top:2px}
@@ -230,7 +233,7 @@ ol.steps strong{color:var(--t1)}
   /* ================================================================
      Reference data
      ================================================================ */
-  var WEEK1 = Date.UTC(2025, 11, 28);              // FY2026 week 1 starts Sun 28 Dec 2025
+  var WEEK1 = Date.UTC(2025, 11, 28), MAXWEEK = 52;              // FY2026 week 1 starts Sun 28 Dec 2025
   var DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -322,7 +325,7 @@ ol.steps strong{color:var(--t1)}
     "Use the driver's shift to work out AM or PM on bare times; a noons shift runs past midnight.\n" +
     "Leave a field blank rather than guessing.";
 
-  var APP_VER = "v6", APP_BUILT = "10 Sep 2026";
+  var APP_VER = "v15", APP_BUILT = "10 Sep 2026";
 
   var SB_SQL = "create table if not exists runsheets (\n  id text primary key,\n  date text, driver text,\n  doc jsonb not null,\n  deleted boolean not null default false,\n  up bigint not null default 0\n);\ncreate table if not exists runsheet_photos (\n  id text primary key, img text, up bigint not null default 0\n);\ncreate table if not exists runsheet_config (\n  key text primary key, doc jsonb not null, up bigint not null default 0\n);\nalter table runsheets enable row level security;\nalter table runsheet_photos enable row level security;\nalter table runsheet_config enable row level security;\ncreate policy anon_all on runsheets for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_photos for all to anon using (true) with check (true);\ncreate policy anon_all on runsheet_config for all to anon using (true) with check (true);";
 
@@ -487,7 +490,7 @@ ol.steps strong{color:var(--t1)}
   function blankDB() {
     return { v: 2, straightHours: 39.06, rate: "", thresholdMin: 0,
       aliases: JSON.parse(JSON.stringify(DEFAULT_ALIASES)),
-      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-2.5-flash", emailTo: "", sbUrl: "", sbKey: "", configUp: 0, sheets: [] };
+      drivers: JSON.parse(JSON.stringify(SEED_DRIVERS)), apiKey: "", geminiKey: "", geminiModel: "gemini-3.5-flash-lite", emailTo: "", sbUrl: "", sbKey: "", configUp: 0, sheets: [] };
   }
   function seed() {
     var d = blankDB();
@@ -540,7 +543,7 @@ ol.steps strong{color:var(--t1)}
       if (!DB.drivers || !DB.drivers.length) DB.drivers = JSON.parse(JSON.stringify(SEED_DRIVERS));
       if (DB.apiKey === undefined) DB.apiKey = "";
       if (DB.geminiKey === undefined) DB.geminiKey = "";
-      if (!DB.geminiModel) DB.geminiModel = "gemini-2.5-flash";
+      if (!DB.geminiModel || DB.geminiModel === "gemini-2.5-flash") DB.geminiModel = "gemini-3.5-flash-lite";
       if (DB.emailTo === undefined) DB.emailTo = "";
       if (DB.sbUrl === undefined) DB.sbUrl = "";
       if (DB.sbKey === undefined) DB.sbKey = "";
@@ -557,7 +560,7 @@ ol.steps strong{color:var(--t1)}
     if (saveT) clearTimeout(saveT);
     saveT = setTimeout(saveNow, 250);
   }
-  function saveNow() { saveLocal(); if (sbOn()) { if (syncT) clearTimeout(syncT); syncT = setTimeout(syncPush, 600); } }
+  function saveNow() { saveLocal(); if (sbOn()) { if (syncT) clearTimeout(syncT); syncT = setTimeout(syncNow, 600); } }
   function saveLocal() {
     saveT = null;
     DB.savedAt = new Date().toISOString();
@@ -591,11 +594,19 @@ ol.steps strong{color:var(--t1)}
      Each sheet carries an `up` stamp; newest wins. Deletes leave a
      tombstone so they travel too.
      ================================================================ */
-  var LASTPUSH = {}, LASTPHOTO = {}, LASTCFG = "", SYNC = "off", syncT = null, pullT = null;
+  var LASTPUSH = {}, LASTPHOTO = {}, LASTCFG = "", SYNC = "off", syncT = null, pullT = null, TOMBS = {}, LASTSYNC = 0;
   var CFG_KEYS = ["drivers", "aliases", "straightHours", "rate", "thresholdMin", "emailTo"];
 
   function sbOn() { return !!(String(DB.sbUrl || "").trim() && String(DB.sbKey || "").trim()); }
-  function sbBase() { return String(DB.sbUrl || "").trim().replace(/\/+$/, "") + "/rest/v1/"; }
+  // Accept the bare project URL or the full REST endpoint - Supabase shows both.
+  function sbRoot() {
+    var u = String(DB.sbUrl || "").trim();
+    u = u.replace(/\s+/g, "").replace(/\/+$/, "");
+    u = u.replace(/\/rest(\/v1)?$/i, "");
+    if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+    return u.replace(/\/+$/, "");
+  }
+  function sbBase() { return sbRoot() + "/rest/v1/"; }
   function sbHead(extra) {
     var k = String(DB.sbKey || "").trim();
     var h = { "apikey": k, "Content-Type": "application/json" };
@@ -630,7 +641,9 @@ ol.steps strong{color:var(--t1)}
     if (!sbOn()) return Promise.resolve();
     var rows = [], now = Date.now(), i;
     for (i = 0; i < DB.sheets.length; i++) {
-      var sh = DB.sheets[i], clean = JSON.parse(JSON.stringify(sh));
+      var sh = DB.sheets[i];
+      if (TOMBS[sh.id]) continue;   // deleted elsewhere; do not resurrect it
+      var clean = JSON.parse(JSON.stringify(sh));
       delete clean.reading; delete clean.readError; delete clean.netTry; delete clean.retried; delete clean.up;
       var s = JSON.stringify(clean);
       if (LASTPUSH[sh.id] !== s) {
@@ -640,9 +653,12 @@ ol.steps strong{color:var(--t1)}
       }
     }
     var live = {}; for (i = 0; i < DB.sheets.length; i++) live[DB.sheets[i].id] = 1;
-    for (var id in LASTPUSH) if (LASTPUSH.hasOwnProperty(id) && !live[id]) {
-      rows.push({ id: id, date: "", driver: "", doc: {}, deleted: true, up: now });
-      delete LASTPUSH[id];
+    var gone = [];
+    for (var id in LASTPUSH) if (LASTPUSH.hasOwnProperty(id) && !live[id]) gone.push(id);
+    for (var g2 = 0; g2 < gone.length; g2++) {
+      rows.push({ id: gone[g2], date: "", driver: "", doc: {}, deleted: true, up: now });
+      TOMBS[gone[g2]] = 1;
+      delete LASTPUSH[gone[g2]];
     }
     var jobs = [];
     if (rows.length) jobs.push(sbPut("runsheets", rows));
@@ -675,12 +691,17 @@ ol.steps strong{color:var(--t1)}
       for (i = 0; i < rows.length; i++) {
         var row = rows[i], local = findSheet(row.id), up = +row.up || 0;
         if (row.deleted) {
-          if (local && (local.up || 0) <= up) {
+          // Deleting is deliberate, so it wins outright. Comparing stamps here
+          // made deletes stick or not depending on clock drift between devices.
+          TOMBS[row.id] = 1;
+          if (local) {
             DB.sheets = DB.sheets.filter(function (x) { return x.id !== row.id; });
-            delete LASTPUSH[row.id]; changed = true;
+            delete OPEN[row.id]; delete LASTPUSH[row.id]; dropPhoto(row.id);
+            changed = true;
           }
           continue;
         }
+        if (TOMBS[row.id]) continue;
         if (!row.doc || !row.doc.id) continue;
         if (!local) {
           var add = row.doc; add.up = up; add.reading = false; add.readError = "";
@@ -702,6 +723,7 @@ ol.steps strong{color:var(--t1)}
         changed = true;
       }
       if (!LASTCFG) LASTCFG = JSON.stringify(cfgDoc());
+      LASTSYNC = Date.now();
       setSync("ok");
       if (changed) { saveLocal(); try { render(); } catch (e) { } }
     }, function (e) { setSync("err"); if (!quiet) toast(e.message || "Could not reach Supabase."); });
@@ -711,7 +733,7 @@ ol.steps strong{color:var(--t1)}
   function startPolling() {
     if (pullT) clearInterval(pullT);
     if (!sbOn()) return;
-    pullT = setInterval(function () { if (!document.hidden) syncPull(true); }, 20000);
+    pullT = setInterval(function () { if (!document.hidden) syncPull(true); }, 12000);
   }
 
   var toastT = null;
@@ -903,23 +925,32 @@ ol.steps strong{color:var(--t1)}
   }
 
   // Google's free tier. The key rides in the URL, which is how their REST API expects it.
-  function callGemini(b64) {
-    var key = String(DB.geminiKey || "").trim(), model = String(DB.geminiModel || "gemini-2.5-flash").trim();
+  var MODEL_FALLBACK = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-2.5-flash"];
+  function callGemini(b64, forceModel, noThink, bigTokens) {
+    var key = String(DB.geminiKey || "").trim();
+    var model = String(forceModel || DB.geminiModel || "gemini-3.5-flash-lite").trim();
+    // 3.x uses thinkingLevel and ignores temperature; 2.x uses thinkingBudget.
+    // Sending both in one request is a 400, so they never mix.
+    var gen = { responseMimeType: "application/json" };
+    if (/gemini-2\./.test(model)) {
+      gen.temperature = 0;
+      gen.maxOutputTokens = 2048;
+      if (!noThink) gen.thinkingConfig = { thinkingBudget: 0 };
+      if (bigTokens) gen.maxOutputTokens = 8192;
+    } else {
+      // Thinking tokens come out of the same budget as the answer, so this has
+      // to cover both. "low" is supported on every 3.x Flash variant.
+      gen.maxOutputTokens = bigTokens ? 16384 : 8192;
+      if (!noThink) gen.thinkingConfig = { thinkingLevel: "low" };
+    }
     return postJSON("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(key),
       { "Content-Type": "application/json" },
       JSON.stringify({
         contents: [{ parts: [
           { inline_data: { mime_type: "image/jpeg", data: b64 } },
           { text: extractPrompt() } ] }],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: "application/json",
-          maxOutputTokens: 2048,
-          // 2.5 Flash thinks by default and can burn the whole budget before
-          // writing anything. Off makes it fast and reliable for transcription.
-          thinkingConfig: { thinkingBudget: 0 }
-        }
-      })).then(function (res) { res.who = "gemini"; return res; })
+        generationConfig: gen
+      })).then(function (res) { res.who = "gemini"; res.model = model; res.noThink = !!noThink; res.big = !!bigTokens; return res; })
       .then(function (res) {
         if (!res.ok) return res;
         var data = JSON.parse(res.body), text = "";
@@ -929,7 +960,7 @@ ol.steps strong{color:var(--t1)}
         res.finish = c ? c.finishReason : ((data.promptFeedback || {}).blockReason || "NO_CANDIDATE");
         if (!text) {
           res.ok = false; res.status = 599;
-          res.emptyWhy = res.finish === "MAX_TOKENS" ? "The reply was cut off. Retrying smaller."
+          res.emptyWhy = res.finish === "MAX_TOKENS" ? "The reply was cut off before it finished."
             : res.finish === "SAFETY" || res.finish === "PROHIBITED_CONTENT" ? "Google blocked that image. Retake it straighter."
               : "Google sent an empty reply (" + (res.finish || "unknown") + ").";
         }
@@ -949,7 +980,34 @@ ol.steps strong{color:var(--t1)}
     if (parts.length < 2) { finishRead(sh, "The photo did not save. Take it again."); return; }
     var which = readerAvailable();
     var p;
-    if (which === "gemini") p = callGemini(parts[1]);
+    if (which === "gemini") {
+      p = callGemini(parts[1]).then(function (res) {
+        if (!res.ok && res.status === 400 && /thinking|thinkingLevel|thinkingBudget|generation_config|generationConfig/i.test(res.body || "")) {
+          logRead(sh, "wait", "thinking setting rejected, retrying without it");
+          return callGemini(parts[1], null, true);
+        }
+        return res;
+      }).then(function (res) {
+        if (!res.ok && res.finish === "MAX_TOKENS" && !res.big) {
+          logRead(sh, "wait", "reply was cut off, retrying with more room");
+          return callGemini(parts[1], null, false, true);
+        }
+        return res;
+      }).then(function (res) {
+        if (res.ok || (res.status !== 429 && res.status !== 404)) return res;
+        var tried = String(DB.geminiModel || "").trim(), chain = [];
+        for (var i = 0; i < MODEL_FALLBACK.length; i++) if (MODEL_FALLBACK[i] !== tried) chain.push(MODEL_FALLBACK[i]);
+        function nextOne(n) {
+          if (n >= chain.length) return res;
+          logRead(sh, "wait", tried + " refused, trying " + chain[n]);
+          return callGemini(parts[1], chain[n]).then(function (r2) {
+            if (r2.ok) { DB.geminiModel = chain[n]; save(); toast("Switched to " + chain[n] + "; that one has free quota."); return r2; }
+            return nextOne(n + 1);
+          });
+        }
+        return nextOne(0);
+      });
+    }
     else if (which === "claude") p = callClaude(parts[1], true);
     else if (which === "claude-free") p = callClaude(parts[1], false).then(function (res) {
       if (!res.ok && String(DB.apiKey || "").trim()) return callClaude(parts[1], true);
@@ -981,7 +1039,7 @@ ol.steps strong{color:var(--t1)}
       logRead(sh, "fail", msg);
       var n = (sh.netTry || 0) + 1;
       // Three goes at it, each with a smaller image. Size is what usually kills these.
-      if (n <= 2 && !/blocked that image|rejected the key|not found/i.test(msg)) {
+      if (n <= 2 && !/blocked that image|rejected the key|not found|cut off/i.test(msg)) {
         sh.netTry = n;
         var side = n === 1 ? 1000 : 780, q = n === 1 ? 0.55 : 0.45;
         if (PHOTOS[sh.id]) {
@@ -1010,7 +1068,10 @@ ol.steps strong{color:var(--t1)}
       return hasKey ? "The API key was rejected. Check it on the Setup tab."
         : "No reader is set up. Add a Gemini key on the Setup tab, or use Type or paste sheets in.";
     }
-    if (res.status === 429) return "Busy right now. Wait a moment and tap Try again.";
+    if (res.status === 429) {
+      if (/free|quota|billing|tier/i.test(msg)) return "No free quota for " + (res.model || "that model") + ". Google said: " + msg;
+      return "Rate limited. Wait a minute and tap Try again." + (msg ? " Google said: " + msg : "");
+    }
     if (res.status >= 500) return "Anthropic returned an error. Try again shortly.";
     return msg || ("Request failed (" + res.status + ").");
   }
@@ -1137,9 +1198,7 @@ ol.steps strong{color:var(--t1)}
     var pend = 0;
     for (var i = 0; i < list.length; i++) if (sheetStatus(list[i]).k === "review") pend++;
 
-    var todayW = fiscal(todayISO()).week, counts = weekCounts(), lo = WEEK, hi = WEEK;
-    for (var wk in counts) if (counts.hasOwnProperty(wk)) { lo = Math.min(lo, +wk); hi = Math.max(hi, +wk); }
-    lo = Math.max(1, Math.min(lo, todayW) - 3); hi = Math.min(53, Math.max(hi, todayW) + 4);
+    var todayW = fiscal(todayISO()).week, counts = weekCounts();
 
     var h = '<div class="top"><div class="top-in"><h1>Run sheets</h1>' +
       '<div class="stamp">Period <b>' + f.period + '</b>&ensp;Week <b>' + f.wop + '</b>&ensp;<b>' + shortDate(dates[0]) + '&ndash;' + shortDate(dates[6]) + '</b>' +
@@ -1148,14 +1207,9 @@ ol.steps strong{color:var(--t1)}
         (SYNC === "err" ? "var(--red)" : SYNC === "busy" ? "var(--acc)" : "var(--green)") + '"></span>' +
         (SYNC === "err" ? "sync off" : SYNC === "busy" ? "syncing" : "synced") + '</span>' : '') +
       '</div></div>';
-    h += '<div class="wk-bar"><button class="wk-arrow" data-week="' + (WEEK - 1) + '" aria-label="Previous week"' + (WEEK <= 1 ? ' disabled' : '') + '>&#8249;</button><div class="wk-strip" id="wkstrip">';
-    for (var w = lo; w <= hi; w++) {
-      var fw = fiscalOfWeek(w), n = counts[w] || 0;
-      h += '<button class="wk' + (w === WEEK ? ' on' : '') + (w === todayW ? ' now' : '') + '" data-week="' + w + '">' +
-        '<span class="wn">W' + w + '</span><span class="wp">P' + fw.period + ' W' + fw.wop + '</span>' +
-        '<span class="wc">' + (n ? n + (n === 1 ? ' sheet' : ' sheets') : (w === todayW ? 'this week' : '&nbsp;')) + '</span></button>';
-    }
-    h += '</div><button class="wk-arrow" data-week="' + (WEEK + 1) + '" aria-label="Next week"' + (WEEK >= 53 ? ' disabled' : '') + '>&#8250;</button></div></div>';
+    h += '<div class="wk-bar"><button class="wk-arrow" data-week="' + (WEEK - 1) + '" aria-label="Previous week"' + (WEEK <= 1 ? ' disabled' : '') + '>&#8249;</button>' +
+      '<div class="wk-strip" id="wkstrip" tabindex="0" role="listbox" aria-label="Fiscal week"></div>' +
+      '<button class="wk-arrow" data-week="' + (WEEK + 1) + '" aria-label="Next week"' + (WEEK >= MAXWEEK ? ' disabled' : '') + '>&#8250;</button></div></div>';
     h += '<div class="nav"><div class="nav-in">' +
       navBtn("log", ICON.log, "Log", pend) + navBtn("hours", ICON.clock, "Hours") + navBtn("tally", ICON.grid, "Tallies") +
       navBtn("export", ICON.out, "Export") + navBtn("setup", ICON.cog, "Setup") + '</div></div>';
@@ -1168,11 +1222,106 @@ ol.steps strong{color:var(--t1)}
     h += '</main>';
     el("app").innerHTML = h;
     wire();
+    paintWeeks();
+  }
+  /* The strip is built once and then left alone. Rebuilding it inside render()
+     is what made it jump: every keystroke and every sync redrew it. */
+  var wkHTML = "", wkSL = 0, wkInit = false;
+  function paintWeeks() {
+    var strip = el("wkstrip");
+    if (!strip) return;
+    var todayW = fiscal(todayISO()).week, counts = weekCounts();
+    var sig = [];
+    for (var c = 1; c <= MAXWEEK; c++) sig.push(counts[c] || 0);
+    sig = sig.join(",") + "|" + WEEK + "|" + todayW;
+
+    if (sig !== wkHTML) {
+      // Rewriting the contents resets the scroll, so capture it and put it back.
+      var keep = wkInit ? strip.scrollLeft : 0;
+      var h = "";
+      for (var w = 1; w <= MAXWEEK; w++) {
+        var fw = fiscalOfWeek(w), n = counts[w] || 0;
+        h += '<button class="wk' + (w === WEEK ? " on" : "") + (w === todayW ? " now" : "") + '" data-week="' + w + '"' +
+          (w === WEEK ? ' aria-selected="true"' : '') + '>' +
+          '<span class="wn">W' + w + '</span><span class="wp">P' + fw.period + " W" + fw.wop + '</span>' +
+          '<span class="wc">' + (n ? n + (n === 1 ? " sheet" : " sheets") : (w === todayW ? "this week" : "&nbsp;")) + '</span></button>';
+      }
+      strip.innerHTML = h;
+      wkHTML = sig;
+      if (wkInit) { strip.scrollLeft = keep; wkSL = keep; }
+    } else if (wkInit) {
+      strip.scrollLeft = wkSL;
+    }
+
+    if (!wkInit) {
+      // Centre on the current week once, on first load. After that the strip
+      // stays exactly where it is left, whatever else changes on screen.
+      var on0 = strip.querySelector(".wk.on");
+      if (on0) { wkSL = Math.max(0, on0.offsetLeft - strip.clientWidth / 2 + on0.offsetWidth / 2); strip.scrollLeft = wkSL; }
+      wkInit = true;
+    }
+    if (!strip.bound) { bindStrip(strip); strip.bound = 1; }
+  }
+
+  // Nudge the selected chip into view, but only when it is off screen and only
+  // as far as needed - used by the arrow keys, never by a click.
+  function revealWeek() {
     try {
-      var strip = el("wkstrip"), on = strip && strip.querySelector(".wk.on");
-      if (on && strip) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2);
+      var strip = el("wkstrip");
+      if (!strip) return;
+      var on = strip.querySelector(".wk.on");
+      if (!on) return;
+      var left = on.offsetLeft, right = left + on.offsetWidth;
+      var vl = strip.scrollLeft, vr = vl + strip.clientWidth;
+      if (left < vl + 8) strip.scrollLeft = Math.max(0, left - 8);
+      else if (right > vr - 8) strip.scrollLeft = right - strip.clientWidth + 8;
+      wkSL = strip.scrollLeft;
     } catch (e) { }
   }
+
+  // Arrow keys once focused, and click-and-drag to browse without changing week.
+  function bindStrip(strip) {
+    strip.addEventListener("scroll", function () { wkSL = strip.scrollLeft; }, false);
+    // A double click was landing as two selections and collapsing the band.
+    strip.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); }, false);
+    strip.addEventListener("selectstart", function (e) { e.preventDefault(); }, false);
+    strip.addEventListener("keydown", function (e) {
+      var k = e.keyCode || e.which, step = 0;
+      if (k === 37) step = -1; else if (k === 39) step = 1;
+      else if (k === 36) step = 1 - WEEK; else if (k === 35) step = MAXWEEK - WEEK;
+      else if (k === 33) step = -4; else if (k === 34) step = 4;
+      else return;
+      e.preventDefault();
+      var nw = Math.min(MAXWEEK, Math.max(1, WEEK + step));
+      if (nw !== WEEK) { WEEK = nw; DAYSEL = ""; render(); revealWeek(); var s2 = el("wkstrip"); if (s2) s2.focus(); }
+    }, false);
+
+    var down = false, moved = 0, sx = 0, ss = 0;
+    strip.addEventListener("mousedown", function (e) {
+      down = true; moved = 0; sx = e.clientX; ss = strip.scrollLeft;
+      strip.style.cursor = "grabbing";
+    }, false);
+    document.addEventListener("mousemove", function (e) {
+      if (!down) return;
+      var dx = e.clientX - sx;
+      if (Math.abs(dx) > 3) moved = 1;
+      strip.scrollLeft = ss - dx; wkSL = strip.scrollLeft;
+      if (moved) e.preventDefault();
+    }, false);
+    document.addEventListener("mouseup", function () {
+      if (!down) return;
+      down = false; strip.style.cursor = "";
+      // Swallow the click that ends a drag so it does not also pick a week.
+      if (moved) { strip.dragged = 1; setTimeout(function () { strip.dragged = 0; }, 0); }
+    }, false);
+    // Trackpad and shift-wheel move it sideways too.
+    strip.addEventListener("wheel", function (e) {
+      var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+      if (!d) return;
+      e.preventDefault(); strip.scrollLeft += d; wkSL = strip.scrollLeft;
+    }, false);
+  }
+
   function navBtn(k, icon, label, pip) {
     return '<button data-tab="' + k + '" aria-selected="' + (TAB === k) + '">' + icon + '<span>' + label + '</span>' + (pip ? '<span class="pip">' + pip + '</span>' : '') + '</button>';
   }
@@ -1214,6 +1363,7 @@ ol.steps strong{color:var(--t1)}
     var prog = readProgress(), unread = readerAvailable() ? unreadSheets(list) : [];
     if (prog.waiting) h += '<div class="notice" style="display:flex;align-items:center;gap:10px"><span class="spin"></span><span>Reading ' + prog.waiting + ' sheet' + (prog.waiting === 1 ? '' : 's') + '. Keep the app open; about six seconds each.</span></div>';
     else if (unread.length) h += '<div class="notice bad" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>' + unread.length + ' photo' + (unread.length === 1 ? ' has' : 's have') + ' not been read yet.</span><button class="btn sm primary" data-act="readall">Read ' + (unread.length === 1 ? 'it' : 'them') + ' now</button></div>';
+    if (sbOn()) h += '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn quiet sm" data-act="sbsync">Refresh from the server</button></div>';
     if (DAYSEL) h += '<div class="row" style="justify-content:space-between"><button class="btn sm" data-act="emailsel">Email ' + prettyDate(DAYSEL) + ' to work</button><button class="btn quiet sm" data-act="allday">Show the whole week</button></div>';
 
     var shown = DAYSEL ? list.filter(function (s) { return s.date === DAYSEL; }) : list;
@@ -1641,7 +1791,8 @@ ol.steps strong{color:var(--t1)}
 
     h += '<div class="card"><div class="card-h"><h2>Shared storage</h2>' + syncDot() + '</div><div class="card-b">';
     h += '<p class="muted">With a Supabase project connected, every device that opens this link shares the same run sheets. Without one, each device keeps its own copy.</p>';
-    h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 260px">Project URL<input type="text" data-g="sbUrl" value="' + esc(DB.sbUrl) + '" placeholder="https://abcdefgh.supabase.co" spellcheck="false" autocapitalize="off"></label></div>';
+    h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 260px">Project URL<input type="text" data-g="sbUrl" value="' + esc(DB.sbUrl) + '" placeholder="https://abcdefgh.supabase.co" spellcheck="false" autocapitalize="off"></label></div>' +
+      (String(DB.sbUrl || "").trim() && sbRoot() !== String(DB.sbUrl || "").trim() ? '<p class="small" style="margin:-4px 0 12px">Will be used as <b>' + esc(sbRoot()) + '</b></p>' : '');
     h += '<div class="grid"><label style="flex:2 1 260px">Publishable key<input type="password" data-g="sbKey" value="' + esc(DB.sbKey) + '" placeholder="sb_publishable_..." autocomplete="off" spellcheck="false"></label></div>';
     if (/^sb_secret_/.test(String(DB.sbKey || "").trim())) h += '<div class="notice bad" style="margin-bottom:12px"><strong>That is the secret key.</strong> It bypasses all security and must never sit in a web page. Use the one starting sb_publishable_ instead.</div>';
     h += '<div class="row"><button class="btn primary" data-act="sbtest">Connect and sync</button>' +
@@ -1657,9 +1808,9 @@ ol.steps strong{color:var(--t1)}
     h += '<div class="card"><div class="card-h"><h2>Photo reading</h2></div><div class="card-b">';
     h += '<p class="muted">A photographed sheet is sent to a vision model that reads the handwriting and fills the card in. Google\u2019s Gemini has a free tier that needs no card, just a Google account.</p>';
     h += '<div class="grid" style="margin-top:14px"><label style="flex:2 1 240px">Gemini API key, free<input type="password" data-g="geminiKey" value="' + esc(DB.geminiKey) + '" placeholder="AIza..." autocomplete="off" spellcheck="false"></label>' +
-      '<label>Gemini model<input type="text" data-g="geminiModel" value="' + esc(DB.geminiModel) + '" spellcheck="false"></label></div>';
+      '<label>Gemini model<select data-g="geminiModel">' + modelOptions() + '</select></label></div>';
     h += '<div class="row"><button class="btn" data-act="testgemini">Test the key</button>' + (DB.geminiKey ? '<button class="btn sm danger" data-act="cleargemini">Remove</button>' : '') + '</div>';
-    h += '<p class="small" style="margin:12px 0 0">Get one at aistudio.google.com: sign in, open API keys, create a key, copy it here. The key stays on this device and goes only to Google. About a second a sheet.</p>';
+    h += '<p class="small" style="margin:12px 0 0">gemini-3.5-flash-lite is the default: lightest, fastest and the highest free daily allowance. If a model refuses, the app tries the others on its own. Get a key at aistudio.google.com: sign in, open API keys, create a key, copy it here. The key stays on this device and goes only to Google. About a second a sheet.</p>';
     h += '<details class="more"><summary>Use an Anthropic key instead</summary>' +
       '<div class="grid"><label style="flex:2 1 240px">Anthropic API key<input type="password" data-g="apiKey" value="' + esc(DB.apiKey) + '" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></label></div>' +
       '<div class="row"><button class="btn sm" data-act="testkey">Test the key</button>' + (DB.apiKey ? '<button class="btn sm danger" data-act="clearkey">Remove</button>' : '') + '</div>' +
@@ -1691,10 +1842,26 @@ ol.steps strong{color:var(--t1)}
       '</ol></details>';
     return h;
   }
+  function modelOptions() {
+    var list = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
+    var cur = String(DB.geminiModel || "gemini-3.5-flash-lite").trim(), found = false, h = "";
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === cur) found = true;
+      var note = list[i] === "gemini-3.5-flash-lite" ? " (recommended, highest free limits)"
+        : list[i] === "gemini-2.5-flash" ? " (older keys only)"
+          : " (heavier, lower free limits)";
+      h += '<option value="' + list[i] + '"' + (list[i] === cur ? ' selected' : '') + '>' + list[i] + note + '</option>';
+    }
+    if (!found) h = '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>' + h;
+    return h;
+  }
+
   function syncDot() {
     if (!sbOn()) return '<span class="small">Not connected</span>';
     var m = { ok: ["Synced", "var(--green)"], busy: ["Syncing", "var(--acc)"], err: ["Sync problem", "var(--red)"], off: ["Idle", "var(--t3)"] }[SYNC] || ["Idle", "var(--t3)"];
-    return '<span class="small" style="display:inline-flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:' + m[1] + '"></span>' + m[0] + '</span>';
+    var when = "";
+    if (LASTSYNC) { var d = new Date(LASTSYNC); when = " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()); }
+    return '<span class="small" style="display:inline-flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:' + m[1] + '"></span>' + m[0] + esc(when) + '</span>';
   }
   function aliasText() { var l = []; for (var k in DB.aliases) if (DB.aliases.hasOwnProperty(k)) l.push(k + " = " + DB.aliases[k].join(", ")); return l.join("\n"); }
   function parseAliasText(txt) {
@@ -1724,7 +1891,21 @@ ol.steps strong{color:var(--t1)}
     var b = closestAttr(ev.target, "data-tab");
     if (b) { TAB = b.getAttribute("data-tab"); render(); window.scrollTo(0, 0); return; }
     var wkb = closestAttr(ev.target, "data-week");
-    if (wkb && !wkb.disabled) { var nw = +wkb.getAttribute("data-week"); if (nw >= 1 && nw <= 53) { WEEK = nw; DAYSEL = ""; render(); } return; }
+    if (wkb && !wkb.disabled) {
+      var stripEl = el("wkstrip");
+      if (stripEl && stripEl.dragged) return;
+      var nw = +wkb.getAttribute("data-week");
+      if (nw === WEEK) { if (stripEl) stripEl.focus({ preventScroll: true }); return; }
+      if (nw >= 1 && nw <= MAXWEEK) {
+        WEEK = nw; DAYSEL = "";
+        var keepSL = stripEl ? stripEl.scrollLeft : wkSL;
+        wkSL = keepSL;
+        render();
+        var s3 = el("wkstrip");
+        if (s3) { s3.scrollLeft = keepSL; s3.focus({ preventScroll: true }); }
+      }
+      return;
+    }
     var sg = closestAttr(ev.target, "data-tally");
     if (sg) { TALLY = sg.getAttribute("data-tally"); render(); return; }
     var dy = closestAttr(ev.target, "data-day");
@@ -1745,7 +1926,7 @@ ol.steps strong{color:var(--t1)}
       if (!r2.sheets.length) { toast("Nothing readable there. Check the format."); return; }
       for (var s4 = 0; s4 < r2.sheets.length; s4++) DB.sheets.unshift(r2.sheets[s4]);
       PASTE_OPEN = false;
-      var wk = fiscal(r2.sheets[0].date).week; if (wk >= 1 && wk <= 53) WEEK = wk;
+      var wk = fiscal(r2.sheets[0].date).week; if (wk >= 1 && wk <= MAXWEEK) WEEK = wk;
       save(); render(); window.scrollTo(0, 0);
       toast(r2.sheets.length + " sheet" + (r2.sheets.length === 1 ? "" : "s") + " added." + (r2.problems.length ? " " + r2.problems[0] : ""));
       return;
@@ -1789,7 +1970,9 @@ ol.steps strong{color:var(--t1)}
     if (act === "sbtest" || act === "sbsync") {
       if (!sbOn()) { toast("Fill in both the project URL and the publishable key."); return; }
       if (/^sb_secret_/.test(String(DB.sbKey || "").trim())) { toast("That is the secret key. Use the sb_publishable_ one."); return; }
-      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(DB.sbUrl || "").trim())) { toast("The project URL should look like https://abcdefgh.supabase.co"); return; }
+      var root = sbRoot();
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(root)) { toast("The project URL should look like https://abcdefgh.supabase.co"); return; }
+      if (DB.sbUrl !== root) { DB.sbUrl = root; save(); }
       a.disabled = true; a.textContent = "Working";
       syncPush().then(function () { return syncPull(); }).then(function () {
         startPolling(); render();
